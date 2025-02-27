@@ -4,6 +4,8 @@ import sklearn
 import silence_tensorflow.auto
 import gpflow
 import time
+import matplotlib
+matplotlib.use('TkAgg')
 
 import matplotlib.pyplot as plt
 import gpflow.utilities as gputil
@@ -101,24 +103,29 @@ r_numberofpoints = 0.5
 
 
 ### data points
-breakpoints = ['param1', 'param2', 'param3']
-param1_steps = 400
-
-output = 'var1'
 
 ## training space
-data_bases = pd.read_csv('./input.csv', skiprows=range(1, 5))
-# clean up too much data, like sampling at every 4 row and ignore negative param2
-data_basel = data_bases[(data_bases['param1'] % param1_steps == 0) & (data_bases['param1'] > 0) & (data_bases['param2'] > 0)]
+data_bases = pd.read_csv('./input.csv')
+
+Ndimensions = 3 # first 3 columns have the breakpoints
+
+brkpts = data_bases.columns[:Ndimensions].to_numpy()
+output = data_bases.columns[Ndimensions]
+
+# clean up too much data, like sampling at every 4 row
+param1_steps = 4
+
+data_basel = data_bases.iloc[::param1_steps]
+
 # separate breakpoints and output
-dataso = data_basel[breakpoints].astype(np.float64)
+dataso = data_basel[brkpts].astype(np.float64)
 dataf  = data_basel[output].astype(np.float64)
+
 # make this nondimensional
-Ndimensions = np.size(breakpoints)
 NormMin = np.full(Ndimensions, 0.)
 NormDlt = np.full(Ndimensions, 1.)
 datas = dataso.copy()
-for i, b in enumerate(breakpoints):
+for i, b in enumerate(brkpts):
    NormMini   = np.min(dataso[b])
    NormDlt[i] = np.max(dataso[b]) - NormMini
    NormMin[i] = NormMini/NormDlt[i] + 0.5
@@ -126,13 +133,15 @@ for i, b in enumerate(breakpoints):
    datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
 
 ## refit space
-data_delta = pd.read_csv('./deltas.csv', skiprows=range(1, 5))
+data_delta = pd.read_csv('./deltas.csv')
+
 # separate breakpoints and output
-refitso = data_delta[breakpoints].astype(np.float64)
+refitso = data_delta[brkpts].astype(np.float64)
 refitf  = data_delta[output].astype(np.float64)
+
 # make this nondimensional
 refits = refitso.copy()
-for i, b in enumerate(breakpoints):
+for i, b in enumerate(brkpts):
    refits[b] = refitso[b]/NormDlt[i] - NormMin[i]
 
 
@@ -350,7 +359,7 @@ for c in cases_param1_param2:
    Xo['param3'] = param3_range
 
    X = Xo.copy()
-   for i, b in enumerate(breakpoints):
+   for i, b in enumerate(brkpts):
        X[b] = Xo[b]/NormDlt[i] - NormMin[i]
 
    if method == 'scikit':
