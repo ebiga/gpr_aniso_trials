@@ -90,6 +90,22 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
     return X_reduced, Y_reduced
 
 
+# Compute the rms of the mean
+def check_mean(mean, refd):
+    delta = refd - mean
+
+    Ntotal = np.shape(delta)[0]
+
+    rms_check = np.sqrt( np.sum( delta**2. )/Ntotal )
+    mae_check = np.sum( np.abs(delta) )/Ntotal
+    max_check = np.max( np.abs(delta) )
+
+    msg = "Training errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
+    print(msg)
+
+
+
+
 flightlog = open('log.txt', 'w')
 
 start_time = time.time()
@@ -328,6 +344,7 @@ elif method == 'nn.tf':
 
     # Predict on refit space and compute delta
     mean = tmodel.predict(datas.to_numpy()).reshape(-1)
+    check_mean(mean, dataf.to_numpy())
 
     ## TRANSFERING
     # Predict on refit space and compute delta
@@ -355,10 +372,6 @@ elif method == 'nn.tf':
     # Predict delta on original training space and compute the refitted mean
     refit_delta_means = posterior_gpr_refit.predict_f(datas.to_numpy())[0].numpy().reshape(-1)
     refit_mean = dataf + refit_delta_means
-
-    msg = "Refit Kernel: " + str(generate_gpflow_kernel_code(gpr_refit.kernel))
-    print(msg)
-    flightlog.write(msg+'\n')
 
 
 
