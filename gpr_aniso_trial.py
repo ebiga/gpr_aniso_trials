@@ -218,6 +218,7 @@ if method == 'gpr.scikit':
     # Train model
     model.fit(datas, dataf)
     mean = my_predicts(model, datas.to_numpy())
+    check_mean(mean, dataf.to_numpy())
 
     ## TRANSFERING
     # Predict on refit space and compute delta
@@ -306,6 +307,7 @@ elif method == 'gpr.gpflow':
 
     # Predict on refit space and compute delta
     mean = my_predicts(posterior_gpr, datas.to_numpy())
+    check_mean(mean, dataf.to_numpy())
 
     ## TRANSFERING
     # Predict on refit space and compute delta
