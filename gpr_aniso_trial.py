@@ -430,7 +430,7 @@ for v in param3_range:
     Z3 = refit_mean.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
 
     # define the levels and plot
-    levels = np.arange(0.2,0.04,0.02)
+    levels = np.arange(0.04,0.2,0.02)
 
     COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid'  , linewidths=1)
     COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed' , linewidths=0.5)
@@ -444,11 +444,11 @@ for v in param3_range:
         Line2D([0], [0], color='black', linestyle='dashed', linewidth=0.5),
         Line2D([0], [0], color='black', linestyle='dotted', linewidth=1)
     ]
-    labels = ['', ' fitted', 'refit']
+    labels = ['ref', ' fitted', 'refit']
     plt.legend(lines, labels)
 
-    ax.set_xlabel('param1 [-]')
-    ax.set_ylabel('param2 [Nm/rad]')
+    ax.set_xlabel('param1')
+    ax.set_ylabel('param2')
 
     plt.savefig('the_contours_for_'+str(v)+'.png')
     plt.close()
