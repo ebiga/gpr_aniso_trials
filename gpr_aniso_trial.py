@@ -78,7 +78,7 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
     # Apply reduction logic
     mask = np.ones(num_points, dtype=bool)
     for dim in dimensions_to_reduce:
-        unique_vals = np.unique(X[:, dim])
+        unique_vals = np.unique( np.round(X[:, dim], decimals=6) )
         reduced_count = max(1, int(len(unique_vals) * per_dim_reduction))
         reduced_vals = unique_vals[:: len(unique_vals) // reduced_count][:reduced_count]
         mask &= np.isin(X[:, dim], reduced_vals)
@@ -111,6 +111,8 @@ flightlog = open('log.txt', 'w')
 start_time = time.time()
 
 ### user options
+# reduce the number of the input data (the number of points can be a challenge for memory tbh)
+if_filter_input = True
 # options: 'scikit'   or 'gpflow'
 method = 'nn.tf'
 # options: ain't it faking obvious?...
@@ -132,10 +134,12 @@ Ndimensions = 3 # first 3 columns have the breakpoints
 brkpts = data_bases.columns[:Ndimensions].to_numpy()
 output = data_bases.columns[Ndimensions]
 
-# clean up too much data, like sampling at every 4 row
-param1_steps = 4
-
-data_basel = data_bases.iloc[::param1_steps]
+# clean up too much data for the sake of memory
+if if_filter_input:
+    # in this case I know every 4th line of the grid is an integer, so I'll get only these
+    data_basel = data_bases[(data_bases['param1'] % 1 == 0)]
+else:
+    data_basel = data_bases.copy()
 
 # separate breakpoints and output
 dataso = data_basel[brkpts].astype(np.float64)
@@ -379,28 +383,29 @@ elif method == 'nn.tf':
 ### plotting
 
 # contours
-param3_range = [500, 800]
+param3_range = [0.777778, 0.888889]
 for v in param3_range:
     fig = plt.figure(figsize=(12, 10))
     fig.suptitle("Param3 "+str(v), fontsize=14)
     ax = fig.add_subplot(111)
 
     # filtering the slice
-    filtered_indices = dataso[dataso['param3'] == v].index
+    filtered_indices = dataso[ np.round(dataso['param3'], decimals=6) == v].index
 
     # filter the trained mean - we need a pandas dataframe here
     mean_pd = dataf.copy()
     mean_pd.loc[:] = mean
 
     # prepare the arrays
-    X = np.unique(dataso.loc[filtered_indices]['param1'])
-    Y = np.unique(dataso.loc[filtered_indices]['param2'])
+    X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
+    Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
+
     Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
     Z2 = mean_pd.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
     Z3 = refit_mean.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
 
     # define the levels and plot
-    levels = np.arange(0.8,0.96,0.02)
+    levels = np.arange(0.2,0.04,0.02)
 
     COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid'  , linewidths=1)
     COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed' , linewidths=0.5)
@@ -425,7 +430,7 @@ for v in param3_range:
 
 
 # X-Ys
-cases_param1_param2 = [['c1', 5300, 13.9], ['c2', 11120, 74]]
+cases_param1_param2 = [['c1', 13.250000, 0.126364], ['c2', 27.800000, 0.672727]]
 for c in cases_param1_param2:
     fig = plt.figure(figsize=(12, 10))
     ax = fig.add_subplot(111)
@@ -436,7 +441,7 @@ for c in cases_param1_param2:
 
     fig.suptitle("Condition  "+str(c_nam), fontsize=14)
 
-    param3_range = np.linspace(500,900,100)
+    param3_range = np.linspace(0.55,1.0,100)
 
     # create the X dimension to be fitted
     Xo = pd.DataFrame( {col: [pd.NA] * len(param3_range) for col in datas.columns} )
