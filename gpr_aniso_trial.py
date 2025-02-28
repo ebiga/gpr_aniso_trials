@@ -196,7 +196,8 @@ for i, b in enumerate(brkpts):
 
 
 
-### Define kernel and model
+### Traing the model and refit for each of the different methods
+
 if method == 'gpr.scikit':
 
     ## TRAINING
