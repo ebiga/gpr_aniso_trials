@@ -104,6 +104,31 @@ def check_mean(mean, refd):
     print(msg)
 
 
+# My wrapper of predict functions
+def my_predicts(model, X):
+    module = type(model).__module__
+    
+    if "sklearn" in module:
+        return model.predict(X, return_cov=False)
+    
+    elif "gpflow" in module:
+        return model.predict_f(X)[0].numpy().reshape(-1)
+    
+    elif "gpytorch" in module:
+        print('Nothing here yet.')
+        # model.eval()  # Ensure it's in evaluation mode
+        # with torch.no_grad():
+        #     pred = model(X)
+        # return pred.mean, pred.variance
+    
+    elif "tensorflow" in module or "keras" in module:  # TensorFlow/Keras
+        return model.predict(X).reshape(-1)
+    
+    else:
+        raise TypeError(f"Unsupported model type: {type(model)}")
+
+
+
 
 
 flightlog = open('log.txt', 'w')
@@ -186,17 +211,17 @@ if method == 'gpr.scikit':
 
     # Use a kernel info if provided, otherwise optimise
     if if_train_optim:
-        gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=12)
+        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=12)
     else:
-        gpr = GaussianProcessRegressor(kernel=kernel, optimizer=None)
+        model = GaussianProcessRegressor(kernel=kernel, optimizer=None)
 
     # Train model
-    gpr.fit(datas, dataf)
-    mean = gpr.predict(datas, return_cov=False)
+    model.fit(datas, dataf)
+    mean = my_predicts(model, datas.to_numpy())
 
     ## TRANSFERING
     # Predict on refit space and compute delta
-    mean_at_refits = gpr.predict(refits, return_cov=False)
+    mean_at_refits = my_predicts(model, refits.to_numpy())
     delta_means = refitf - mean_at_refits
 
     # Define the kernel parameters - will be overwritten in optimisation
@@ -204,18 +229,18 @@ if method == 'gpr.scikit':
              0.1**2 * RBF(length_scale=1.) + \
              0.01**2 * RBF(length_scale=10.)
 
-    gpr_refit = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=12)
-    gpr_refit.fit(refits, delta_means)
+    model_refit = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=12)
+    model_refit.fit(refits, delta_means)
 
     # Predict delta on original training space and compute the refitted mean
-    refit_delta_means = gpr_refit.predict(datas, return_cov=False)
+    refit_delta_means = my_predicts(model_refit, datas.to_numpy())
     refit_mean = dataf + refit_delta_means
 
-    msg = "Training Kernel: " + str(gpr.kernel_)
+    msg = "Training Kernel: " + str(model.kernel_)
     print(msg)
     flightlog.write(msg+'\n')
 
-    msg = "Refit Kernel: " + str(gpr_refit.kernel_)
+    msg = "Refit Kernel: " + str(model_refit.kernel_)
     print(msg)
     flightlog.write(msg+'\n')
 
@@ -260,31 +285,31 @@ elif method == 'gpr.gpflow':
         )
 
         # Create the full GPR model
-        gpr = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1, 1)), kernel=kernel, noise_variance=None)
-        gpr.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(gpr.likelihood.variance, False)
+        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1, 1)), kernel=kernel, noise_variance=None)
+        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+        gpflow.set_trainable(model.likelihood.variance, False)
 
         # Optimize the full model
-        opt.minimize(gpr.training_loss, variables=gpr.trainable_variables, options=options)
+        opt.minimize(model.training_loss, variables=model.trainable_variables, options=options)
 
-        msg = "Training Kernel: " + str(generate_gpflow_kernel_code(gpr.kernel))
+        msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
         flightlog.write(msg+'\n')
 
     else:
-        gpr = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
-        gpr.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(gpr.likelihood.variance, False)
+        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
+        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+        gpflow.set_trainable(model.likelihood.variance, False)
 
     # store the posterior for faster prediction
-    posterior_gpr = gpr.posterior()
+    posterior_gpr = model.posterior()
 
     # Predict on refit space and compute delta
-    mean = posterior_gpr.predict_f(datas.to_numpy())[0].numpy().reshape(-1)
+    mean = my_predicts(posterior_gpr, datas.to_numpy())
 
     ## TRANSFERING
     # Predict on refit space and compute delta
-    mean_at_refits = posterior_gpr.predict_f(refits.to_numpy())[0].numpy().reshape(-1)
+    mean_at_refits = my_predicts(posterior_gpr, refits.to_numpy())
     delta_means = refitf - mean_at_refits
 
     # Define a dummy kernel - the focus is the mean function, so the kernel is frozen and the mean function trained
@@ -293,22 +318,22 @@ elif method == 'gpr.gpflow':
     kernel = gpflow.kernels.Constant(gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12)))
     mean_function = gpflow.functions.Linear(A=np.zeros((3, 1)), b=np.zeros(1))
 
-    gpr_refit = gpflow.models.GPR(data=(refits.to_numpy(), delta_means.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None, mean_function=mean_function)
-    gpr_refit.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-    gpflow.set_trainable(gpr_refit.likelihood.variance, False)
-    gpflow.set_trainable(gpr_refit.kernel, False)
+    model_refit = gpflow.models.GPR(data=(refits.to_numpy(), delta_means.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None, mean_function=mean_function)
+    model_refit.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+    gpflow.set_trainable(model_refit.likelihood.variance, False)
+    gpflow.set_trainable(model_refit.kernel, False)
 
     # Optimise the mean function coefficients
-    opt.minimize(gpr_refit.training_loss, variables=gpr_refit.trainable_variables, options=options)
+    opt.minimize(model_refit.training_loss, variables=model_refit.trainable_variables, options=options)
 
     # store the posterior for faster prediction
-    posterior_gpr_refit = gpr_refit.posterior()
+    posterior_gpr_refit = model_refit.posterior()
 
     # Predict delta on original training space and compute the refitted mean
-    refit_delta_means = posterior_gpr_refit.predict_f(datas.to_numpy())[0].numpy().reshape(-1)
+    refit_delta_means = my_predicts(posterior_gpr_refit, datas.to_numpy())
     refit_mean = dataf + refit_delta_means
 
-    msg = "Refit Kernel: " + str(generate_gpflow_kernel_code(gpr_refit.kernel))
+    msg = "Refit Kernel: " + str(generate_gpflow_kernel_code(model_refit.kernel))
     print(msg)
     flightlog.write(msg+'\n')
 
@@ -325,34 +350,34 @@ elif method == 'nn.tf':
 
     ## TRAINING
     if if_train_optim:
-        tmodel = keras.Sequential(
+        model = keras.Sequential(
             [layers.Dense(3),
                 layers.Dense(1024, activation='elu', kernel_initializer='he_normal'),
             layers.Dense(1)]
             )
 
-        tmodel.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
+        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
 
-        tmodel.fit(
+        model.fit(
             datas.to_numpy(),
             dataf.to_numpy(),
             verbose=0, epochs=20000, batch_size=64,
             )
 
         # store the model for reuse
-        tmodel.save(trained_model_file)
+        model.save(trained_model_file)
     
     else:
         # We simply insert the input data into the kernel
-        tmodel = tf.keras.models.load_model(trained_model_file)
+        model = tf.keras.models.load_model(trained_model_file)
 
     # Predict on refit space and compute delta
-    mean = tmodel.predict(datas.to_numpy()).reshape(-1)
+    mean = my_predicts(model, datas.to_numpy())
     check_mean(mean, dataf.to_numpy())
 
     ## TRANSFERING
     # Predict on refit space and compute delta
-    mean_at_refits = tmodel.predict(refits.to_numpy()).reshape(-1)
+    mean_at_refits = my_predicts(model, refits.to_numpy())
     delta_means = refitf - mean_at_refits
 
     # Define a dummy kernel - the focus is the mean function, so the kernel is frozen and the mean function trained
@@ -361,20 +386,20 @@ elif method == 'nn.tf':
     kernel = gpflow.kernels.Constant(gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12)))
     mean_function = gpflow.functions.Linear(A=np.zeros((3, 1)), b=np.zeros(1))
 
-    gpr_refit = gpflow.models.GPR(data=(refits.to_numpy(), delta_means.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None, mean_function=mean_function)
-    gpr_refit.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-    gpflow.set_trainable(gpr_refit.likelihood.variance, False)
-    gpflow.set_trainable(gpr_refit.kernel, False)
+    model_refit = gpflow.models.GPR(data=(refits.to_numpy(), delta_means.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None, mean_function=mean_function)
+    model_refit.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+    gpflow.set_trainable(model_refit.likelihood.variance, False)
+    gpflow.set_trainable(model_refit.kernel, False)
 
     # Optimise the mean function coefficients
     opt = gpflow.optimizers.Scipy()
-    opt.minimize(gpr_refit.training_loss, variables=gpr_refit.trainable_variables, options=options)
+    opt.minimize(model_refit.training_loss, variables=model_refit.trainable_variables, options=options)
 
     # store the posterior for faster prediction
-    posterior_gpr_refit = gpr_refit.posterior()
+    posterior_gpr_refit = model_refit.posterior()
 
     # Predict delta on original training space and compute the refitted mean
-    refit_delta_means = posterior_gpr_refit.predict_f(datas.to_numpy())[0].numpy().reshape(-1)
+    refit_delta_means = my_predicts(posterior_gpr_refit, datas.to_numpy())
     refit_mean = dataf + refit_delta_means
 
 
@@ -453,12 +478,8 @@ for c in cases_param1_param2:
     for i, b in enumerate(brkpts):
         X[b] = Xo[b]/NormDlt[i] - NormMin[i]
 
-    if method == 'scikit':
-        Y1 = gpr.predict(X, return_cov=False)
-        Y2 = Y1 + gpr_refit.predict(X, return_cov=False)
-    elif method == 'gpflow':
-        Y1 = posterior_gpr.predict_f(X.to_numpy())[0].numpy().reshape(-1)
-        Y2 = Y1 + posterior_gpr_refit.predict_f(X.to_numpy())[0].numpy().reshape(-1)
+    Y1 = my_predicts(model, X.to_numpy())
+    Y2 = Y1 + my_predicts(model_refit, X.to_numpy())
 
     # get the closest of the function data
     df = pd.DataFrame(dataso)
