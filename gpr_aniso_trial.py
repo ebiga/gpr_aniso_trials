@@ -132,24 +132,36 @@ def my_predicts(model, X):
 
 
 flightlog = open('log.txt', 'w')
-
 start_time = time.time()
 
-### user options
+
+
+
+### USER OPTIONS
+
 # reduce the number of the input data (the number of points can be a challenge for memory tbh)
 if_filter_input = True
-# options: 'scikit'   or 'gpflow'
+
+# fitting methods available:
+#  'gpr.scikit': GPR by scikit-learn
+#  'gpr.gpflow': GPR by GPFlow
+#  'gpr.gpytorch' (not available)
+#  'nn.tf': Neural network by tensorflow/keras
 method = 'nn.tf'
-# options: ain't it faking obvious?...
+
+# let the hyperparameters by optmised? otherwise, you must provide them
 if_train_optim = True
-# booh!lean
+
+# if available, allow for anisotropy in the GPR
 if_train_aniso = True
-# initial condition ratio of points
+
+# ratio of number of points for a reduced-set initial condition
 r_numberofpoints = 0.5
 
 
 
-### data points
+
+### DATA POINTS
 
 ## training space
 data_bases = pd.read_csv('./input.csv')
@@ -196,7 +208,7 @@ for i, b in enumerate(brkpts):
 
 
 
-### Traing the model and refit for each of the different methods
+### TRAIN THE MODELS
 
 if method == 'gpr.scikit':
 
@@ -408,7 +420,7 @@ elif method == 'nn.tf':
 
 
 
-### plotting
+### PLOTTING
 
 # contours
 param3_range = [0.777778, 0.888889]
