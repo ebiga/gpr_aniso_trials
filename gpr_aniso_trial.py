@@ -128,6 +128,21 @@ def my_predicts(model, X):
         raise TypeError(f"Unsupported model type: {type(model)}")
 
 
+# A wrapper for an attention layer
+class FeatureAttentionLayer(layers.Layer):
+    def __init__(self, num_heads=1, key_dim=3):
+        super(FeatureAttentionLayer, self).__init__()
+        self.attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim, kernel_initializer='he_normal')
+
+    def call(self, inputs):
+        # Reshape from (batch_size, 3) to (batch_size, 3, 1) so attention acts across features
+        inputs = tf.expand_dims(inputs, axis=-1)  # (batch_size, 3, 1)
+        
+        # Apply self-attention to features (X, Y, Z)
+        attended_output = self.attention(inputs, inputs)
+
+        # Squeeze back to (batch_size, 3)
+        return tf.squeeze(attended_output, axis=-1)
 
 
 
@@ -147,7 +162,8 @@ if_filter_input = True
 #  'gpr.gpflow': GPR by GPFlow
 #  'gpr.gpytorch' (not available)
 #  'nn.tf': Neural network by tensorflow/keras
-method = 'nn.tf'
+#  'at.tf': Neural network by tensorflow/keras with an attention layer
+method = 'at.tf'
 
 # let the hyperparameters by optmised? otherwise, you must provide them
 if_train_optim = True
@@ -377,6 +393,66 @@ elif method == 'nn.tf':
             datas.to_numpy(),
             dataf.to_numpy(),
             verbose=0, epochs=20000, batch_size=64,
+            )
+
+        # store the model for reuse
+        model.save(trained_model_file)
+    
+    else:
+        # We simply insert the input data into the kernel
+        model = tf.keras.models.load_model(trained_model_file)
+
+    # Predict on refit space and compute delta
+    mean = my_predicts(model, datas.to_numpy())
+    check_mean(mean, dataf.to_numpy())
+
+    ## TRANSFERING
+    # Predict on refit space and compute delta
+    mean_at_refits = my_predicts(model, refits.to_numpy())
+    delta_means = refitf - mean_at_refits
+
+    # Define a dummy kernel - the focus is the mean function, so the kernel is frozen and the mean function trained
+    # We do so cause we only have two points to retrain
+    # We use a dummy kernel so we can use the gpr tools all the same
+    kernel = gpflow.kernels.Constant(gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12)))
+    mean_function = gpflow.functions.Linear(A=np.zeros((3, 1)), b=np.zeros(1))
+
+    model_refit = gpflow.models.GPR(data=(refits.to_numpy(), delta_means.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None, mean_function=mean_function)
+    model_refit.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+    gpflow.set_trainable(model_refit.likelihood.variance, False)
+    gpflow.set_trainable(model_refit.kernel, False)
+
+    # Optimise the mean function coefficients
+    opt = gpflow.optimizers.Scipy()
+    opt.minimize(model_refit.training_loss, variables=model_refit.trainable_variables, options=options)
+
+    # store the posterior for faster prediction
+    posterior_gpr_refit = model_refit.posterior()
+
+    # Predict delta on original training space and compute the refitted mean
+    refit_delta_means = my_predicts(posterior_gpr_refit, datas.to_numpy())
+    refit_mean = dataf + refit_delta_means
+
+
+
+elif method == 'at.tf':
+
+    trained_model_file = 'model_training_att' + '.keras'
+
+    ## TRAINING
+    if if_train_optim:
+        model = keras.Sequential(
+            [FeatureAttentionLayer(num_heads=1, key_dim=3),
+                layers.Dense(1024, activation='elu', kernel_initializer='he_normal'),
+            layers.Dense(1)]
+            )
+
+        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
+
+        model.fit(
+            datas.to_numpy(),
+            dataf.to_numpy(),
+            verbose=0, epochs=5000, batch_size=64,
             )
 
         # store the model for reuse
