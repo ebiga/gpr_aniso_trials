@@ -301,7 +301,7 @@ elif method == 'nn.tf':
     # Setup the neural network
     if if_train_optim:
         model = keras.Sequential(
-            [layers.Dense(3),
+            [layers.Dense(Ndimensions),
                 layers.Dense(1024, activation='elu', kernel_initializer='he_normal'),
             layers.Dense(1)]
             )
