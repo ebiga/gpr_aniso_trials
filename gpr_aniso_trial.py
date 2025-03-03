@@ -130,18 +130,18 @@ def my_predicts(model, X):
 
 # A wrapper for an attention layer
 class FeatureAttentionLayer(layers.Layer):
-    def __init__(self, num_heads=1, key_dim=3):
+    def __init__(self, num_heads, key_dim):
         super(FeatureAttentionLayer, self).__init__()
         self.attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim, kernel_initializer='he_normal')
 
     def call(self, inputs):
-        # Reshape from (batch_size, 3) to (batch_size, 3, 1) so attention acts across features
-        inputs = tf.expand_dims(inputs, axis=-1)  # (batch_size, 3, 1)
+        # Reshape from (batch_size, Ndimensions) to (batch_size, Ndimensions, 1) so attention acts across features
+        inputs = tf.expand_dims(inputs, axis=-1)  # (batch_size, Ndimensions, 1)
         
         # Apply self-attention to features (X, Y, Z)
         attended_output = self.attention(inputs, inputs)
 
-        # Squeeze back to (batch_size, 3)
+        # Squeeze back to (batch_size, Ndimensions)
         return tf.squeeze(attended_output, axis=-1)
 
 
@@ -317,7 +317,7 @@ elif method == 'nn.tf':
     # Setup the neural network
     if if_train_optim:
         model = keras.Sequential(
-            [layers.Dense(3),
+            [layers.Dense(Ndimensions),
                 layers.Dense(1024, activation='elu', kernel_initializer='he_normal'),
             layers.Dense(1)]
             )
@@ -350,7 +350,8 @@ elif method == 'at.tf':
     # Setup the neural network
     if if_train_optim:
         model = keras.Sequential(
-            [FeatureAttentionLayer(num_heads=1, key_dim=3),
+            [layers.Input(shape=(Ndimensions,)),
+                FeatureAttentionLayer(num_heads=1, key_dim=Ndimensions),
                 layers.Dense(1024, activation='elu', kernel_initializer='he_normal'),
             layers.Dense(1)]
             )
