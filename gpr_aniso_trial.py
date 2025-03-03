@@ -193,18 +193,6 @@ for i, b in enumerate(brkpts):
 
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
 
-## refit space
-data_delta = pd.read_csv('./deltas.csv')
-
-# separate breakpoints and output
-refitso = data_delta[brkpts].astype(np.float64)
-refitf  = data_delta[output].astype(np.float64)
-
-# make this nondimensional
-refits = refitso.copy()
-for i, b in enumerate(brkpts):
-    refits[b] = refitso[b]/NormDlt[i] - NormMin[i]
-
 
 
 
@@ -212,7 +200,6 @@ for i, b in enumerate(brkpts):
 
 if method == 'gpr.scikit':
 
-    ## TRAINING
     # Define the kernel parameters - will be overwritten in case of optimisation
     if not if_train_aniso:
         kernel = 1.**2 * RBF(length_scale=0.1) + \
@@ -233,28 +220,7 @@ if method == 'gpr.scikit':
     mean = my_predicts(model, datas.to_numpy())
     check_mean(mean, dataf.to_numpy())
 
-    ## TRANSFERING
-    # Predict on refit space and compute delta
-    mean_at_refits = my_predicts(model, refits.to_numpy())
-    delta_means = refitf - mean_at_refits
-
-    # Define the kernel parameters - will be overwritten in optimisation
-    kernel = 1.**2 * RBF(length_scale=0.1) + \
-             0.1**2 * RBF(length_scale=1.) + \
-             0.01**2 * RBF(length_scale=10.)
-
-    model_refit = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=12)
-    model_refit.fit(refits, delta_means)
-
-    # Predict delta on original training space and compute the refitted mean
-    refit_delta_means = my_predicts(model_refit, datas.to_numpy())
-    refit_mean = dataf + refit_delta_means
-
     msg = "Training Kernel: " + str(model.kernel_)
-    print(msg)
-    flightlog.write(msg+'\n')
-
-    msg = "Refit Kernel: " + str(model_refit.kernel_)
     print(msg)
     flightlog.write(msg+'\n')
 
@@ -262,7 +228,6 @@ if method == 'gpr.scikit':
 
 elif method == 'gpr.gpflow':
 
-    ## TRAINING
     # Define the kernel parameters - will be overwritten in case of optimisation
     if not if_train_aniso:
         kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=0.1) + \
@@ -322,36 +287,6 @@ elif method == 'gpr.gpflow':
     mean = my_predicts(posterior_gpr, datas.to_numpy())
     check_mean(mean, dataf.to_numpy())
 
-    ## TRANSFERING
-    # Predict on refit space and compute delta
-    mean_at_refits = my_predicts(posterior_gpr, refits.to_numpy())
-    delta_means = refitf - mean_at_refits
-
-    # Define a dummy kernel - the focus is the mean function, so the kernel is frozen and the mean function trained
-    # We do so cause we only have two points to retrain
-    # We use a dummy kernel so we can use the gpr tools all the same
-    kernel = gpflow.kernels.Constant(gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12)))
-    mean_function = gpflow.functions.Linear(A=np.zeros((3, 1)), b=np.zeros(1))
-
-    model_refit = gpflow.models.GPR(data=(refits.to_numpy(), delta_means.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None, mean_function=mean_function)
-    model_refit.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-    gpflow.set_trainable(model_refit.likelihood.variance, False)
-    gpflow.set_trainable(model_refit.kernel, False)
-
-    # Optimise the mean function coefficients
-    opt.minimize(model_refit.training_loss, variables=model_refit.trainable_variables, options=options)
-
-    # store the posterior for faster prediction
-    posterior_gpr_refit = model_refit.posterior()
-
-    # Predict delta on original training space and compute the refitted mean
-    refit_delta_means = my_predicts(posterior_gpr_refit, datas.to_numpy())
-    refit_mean = dataf + refit_delta_means
-
-    msg = "Refit Kernel: " + str(generate_gpflow_kernel_code(model_refit.kernel))
-    print(msg)
-    flightlog.write(msg+'\n')
-
 
 
 elif method == 'gpr.gpytorch':
@@ -363,7 +298,7 @@ elif method == 'nn.tf':
 
     trained_model_file = 'model_training_' + '.keras'
 
-    ## TRAINING
+    # Setup the neural network
     if if_train_optim:
         model = keras.Sequential(
             [layers.Dense(3),
@@ -390,26 +325,6 @@ elif method == 'nn.tf':
     mean = my_predicts(model, datas.to_numpy())
     check_mean(mean, dataf.to_numpy())
 
-    ## TRANSFERING
-    # Predict on refit space and compute delta
-    mean_at_refits = my_predicts(model, refits.to_numpy())
-    delta_means = refitf - mean_at_refits
-
-    # Define a single neuron for a linear fit
-    model_refit = keras.Sequential([layers.Dense(3), layers.Dense(1)])
-
-    model_refit.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
-
-    model_refit.fit(
-        refits.to_numpy(),
-        delta_means.to_numpy(),
-        verbose=0, epochs=2000, batch_size=64,
-        )
-
-    # Predict delta on original training space and compute the refitted mean
-    refit_delta_means = my_predicts(model_refit, datas.to_numpy())
-    refit_mean = dataf + refit_delta_means
-
 
 
 
@@ -435,24 +350,20 @@ for v in param3_range:
 
     Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
     Z2 = mean_pd.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
-    Z3 = refit_mean.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
 
     # define the levels and plot
     levels = np.arange(0.04,0.2,0.02)
 
     COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid'  , linewidths=1)
     COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed' , linewidths=0.5)
-    COD = plt.contour(X, Y, Z3, levels=levels, linestyles='dotted' , linewidths=1)
 
     plt.clabel(COU, fontsize=9)
-    plt.clabel(COD, fontsize=9)
 
     lines = [
-        Line2D([0], [0], color='black', linestyle='solid', linewidth=1),
+        Line2D([0], [0], color='black', linestyle='solid' , linewidth=1.0),
         Line2D([0], [0], color='black', linestyle='dashed', linewidth=0.5),
-        Line2D([0], [0], color='black', linestyle='dotted', linewidth=1)
     ]
-    labels = ['ref', ' fitted', 'refit']
+    labels = ['ref', ' fitted']
     plt.legend(lines, labels)
 
     ax.set_xlabel('param1')
@@ -487,7 +398,6 @@ for c in cases_param1_param2:
         X[b] = Xo[b]/NormDlt[i] - NormMin[i]
 
     Y1 = my_predicts(model, X.to_numpy())
-    Y2 = Y1 + my_predicts(model_refit, X.to_numpy())
 
     # get the closest of the function data
     df = pd.DataFrame(dataso)
@@ -500,7 +410,6 @@ for c in cases_param1_param2:
 
     # plot
     plt.plot(param3_range, Y1.T, lw=0.5, label=' fitted')
-    plt.plot(param3_range, Y2.T, lw=0.5, ls='--', label='refit')
     plt.scatter(XR, FR.T, lw=0.5, marker='o', label=' closest')
 
     for i, (x, y) in enumerate(zip(XR, FR.T)):
