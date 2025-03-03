@@ -12,8 +12,6 @@ import gpflow.utilities as gputil
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-tf.random.set_seed(42)
-
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from matplotlib.lines import Line2D
@@ -21,6 +19,9 @@ from tensorflow import keras
 from keras import layers
 
 gpflow.config.set_default_float('float64')
+
+tf.random.set_seed(42)
+keras.utils.set_random_seed(42)
 
 # gpflow minimise options
 options = {
@@ -316,11 +317,12 @@ elif method == 'nn.tf':
 
     # Setup the neural network
     if if_train_optim:
-        model = keras.Sequential(
-            [layers.Dense(Ndimensions),
+        model = keras.Sequential([
+            layers.Input(shape=(Ndimensions,)),
+            layers.Dense(Ndimensions),
                 layers.Dense(1024, activation='elu', kernel_initializer='he_normal'),
-            layers.Dense(1)]
-            )
+            layers.Dense(1)
+            ])
 
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
 
