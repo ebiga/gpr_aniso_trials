@@ -395,26 +395,19 @@ elif method == 'nn.tf':
     mean_at_refits = my_predicts(model, refits.to_numpy())
     delta_means = refitf - mean_at_refits
 
-    # Define a dummy kernel - the focus is the mean function, so the kernel is frozen and the mean function trained
-    # We do so cause we only have two points to retrain
-    # We use a dummy kernel so we can use the gpr tools all the same
-    kernel = gpflow.kernels.Constant(gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12)))
-    mean_function = gpflow.functions.Linear(A=np.zeros((3, 1)), b=np.zeros(1))
+    # Define a single neuron for a linear fit
+    model_refit = keras.Sequential([layers.Dense(3), layers.Dense(1)])
 
-    model_refit = gpflow.models.GPR(data=(refits.to_numpy(), delta_means.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None, mean_function=mean_function)
-    model_refit.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-    gpflow.set_trainable(model_refit.likelihood.variance, False)
-    gpflow.set_trainable(model_refit.kernel, False)
+    model_refit.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
 
-    # Optimise the mean function coefficients
-    opt = gpflow.optimizers.Scipy()
-    opt.minimize(model_refit.training_loss, variables=model_refit.trainable_variables, options=options)
-
-    # store the posterior for faster prediction
-    posterior_gpr_refit = model_refit.posterior()
+    model_refit.fit(
+        refits.to_numpy(),
+        delta_means.to_numpy(),
+        verbose=0, epochs=2000, batch_size=64,
+        )
 
     # Predict delta on original training space and compute the refitted mean
-    refit_delta_means = my_predicts(posterior_gpr_refit, datas.to_numpy())
+    refit_delta_means = my_predicts(model_refit, datas.to_numpy())
     refit_mean = dataf + refit_delta_means
 
 
