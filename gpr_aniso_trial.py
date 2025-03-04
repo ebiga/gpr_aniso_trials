@@ -129,23 +129,6 @@ def my_predicts(model, X):
         raise TypeError(f"Unsupported model type: {type(model)}")
 
 
-# A wrapper for an attention layer
-class FeatureAttentionLayer(layers.Layer):
-    def __init__(self, num_heads, key_dim):
-        super(FeatureAttentionLayer, self).__init__()
-        self.attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim, kernel_initializer='he_normal')
-
-    def call(self, inputs):
-        # Reshape from (batch_size, Ndimensions) to (batch_size, Ndimensions, 1) so attention acts across features
-        inputs = tf.expand_dims(inputs, axis=-1)  # (batch_size, Ndimensions, 1)
-        
-        # Apply self-attention to features (X, Y, Z)
-        attended_output = self.attention(inputs, inputs)
-
-        # Squeeze back to (batch_size, Ndimensions)
-        return tf.squeeze(attended_output, axis=-1)
-
-
 
 flightlog = open('log.txt', 'w')
 start_time = time.time()
@@ -351,12 +334,23 @@ elif method == 'at.tf':
 
     # Setup the neural network
     if if_train_optim:
-        model = keras.Sequential(
-            [layers.Input(shape=(Ndimensions,)),
-                FeatureAttentionLayer(num_heads=1, key_dim=Ndimensions),
-                layers.Dense(1024, activation='elu', kernel_initializer='he_normal'),
-            layers.Dense(1)]
-            )
+        inputs = layers.Input(shape=(3,))
+
+        # Expand to (batch_size, 3)
+        re_inputs = layers.Lambda(lambda x: tf.expand_dims(x, axis=1))(inputs)
+
+        # Apply Multi-Head Attention
+        attention_output = layers.MultiHeadAttention(num_heads=1, key_dim=3)(re_inputs, re_inputs)
+
+        # Squeeze back to (batch_size, 3)
+        attention_output = layers.Lambda(lambda x: tf.squeeze(x, axis=1), output_shape=(None, 3))(attention_output)
+
+        # Fully connected layers
+        dense_output = layers.Dense(1024, activation="elu", kernel_initializer='he_normal')(attention_output)
+        final_output = layers.Dense(1)(dense_output)
+
+        # Create model
+        model = keras.models.Model(inputs=inputs, outputs=final_output)
 
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
 
