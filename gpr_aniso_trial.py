@@ -199,6 +199,7 @@ for i, b in enumerate(brkpts):
 ### TRAIN THE MODELS
 
 if method == 'gpr.scikit':
+    loss = []
 
     # Define the kernel parameters - will be overwritten in case of optimisation
     if not if_train_aniso:
@@ -216,7 +217,8 @@ if method == 'gpr.scikit':
         model = GaussianProcessRegressor(kernel=kernel, optimizer=None)
 
     # Train model
-    model.fit(datas, dataf)
+    model.fit(datas, dataf, optimizer=lambda obj_func, initial_theta, bounds: 
+        [loss.append(val[1]) or val for val in [obj_func(initial_theta)]][0])
     mean = my_predicts(model, datas.to_numpy())
     check_mean(mean, dataf.to_numpy())
 
@@ -239,6 +241,8 @@ elif method == 'gpr.gpflow':
     opt = gpflow.optimizers.Scipy()
 
     if if_train_optim:
+        loss = []
+
         # Step 1: Make an initial guess with a reduced number of points
         r_datas, r_dataf = reduce_point_cloud(datas.to_numpy(), dataf.to_numpy().reshape(-1,1), target_fraction=r_numberofpoints)
         r_gpr = gpflow.models.GPR(data=(r_datas, r_dataf), kernel=kernel, noise_variance=None)
@@ -269,7 +273,7 @@ elif method == 'gpr.gpflow':
         gpflow.set_trainable(model.likelihood.variance, False)
 
         # Optimize the full model
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=options)
+        opt.minimize(model.training_loss, variables=model.trainable_variables, options=options, step_callback=lambda step, var, val: loss.append(val))
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
@@ -309,11 +313,12 @@ elif method == 'nn.tf':
 
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
 
-        model.fit(
+        history = model.fit(
             datas.to_numpy(),
             dataf.to_numpy(),
             verbose=0, epochs=20000, batch_size=64,
             )
+        loss = history.history['loss']
 
         # store the model for reuse
         model.save(trained_model_file)
@@ -354,11 +359,12 @@ elif method == 'at.tf':
 
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
 
-        model.fit(
+        history = model.fit(
             datas.to_numpy(),
             dataf.to_numpy(),
             verbose=0, epochs=5000, batch_size=64,
             )
+        loss = history.history['loss']
 
         # store the model for reuse
         model.save(trained_model_file)
@@ -375,6 +381,17 @@ elif method == 'at.tf':
 
 
 ### PLOTTING
+
+# training convergence
+plt.plot(np.array(loss), label='Training Loss')
+plt.yscale('log')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Loss Convergence')
+plt.legend()
+plt.savefig('convergence_'+str(method)+'.png')
+plt.close()
+
 
 # contours
 param3_range = [0.777778, 0.888889]
