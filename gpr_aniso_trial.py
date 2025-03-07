@@ -397,7 +397,7 @@ plt.close()
 param3_range = [0.777778, 0.888889]
 for v in param3_range:
     fig = plt.figure(figsize=(12, 10))
-    fig.suptitle("Param3 "+str(v), fontsize=14)
+    fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
     ax = fig.add_subplot(111)
 
     # filtering the slice
@@ -426,7 +426,7 @@ for v in param3_range:
         Line2D([0], [0], color='black', linestyle='solid' , linewidth=1.0),
         Line2D([0], [0], color='black', linestyle='dashed', linewidth=0.5),
     ]
-    labels = ['ref', ' fitted']
+    labels = ['ref', 'fitted']
     plt.legend(lines, labels)
 
     ax.set_xlabel('param1')
@@ -438,22 +438,34 @@ for v in param3_range:
 
 # X-Ys
 cases_param1_param2 = [['c1', 13.250000, 0.126364], ['c2', 27.800000, 0.672727]]
+
 for c in cases_param1_param2:
     fig = plt.figure(figsize=(12, 10))
     ax = fig.add_subplot(111)
 
-    c_nam = c[0]
-    c_param1 = c[1]
-    c_trq = c[2]
+    c_name = c[0]
 
-    fig.suptitle("Condition  "+str(c_nam), fontsize=14)
+    # get the closest of the function data
+    df = pd.DataFrame(dataso)
+    df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df['param2'] - c[2])**2)
+    closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
+
+    # get the scattered points closest to the references
+    XR = dataso.loc[closest_points_index]['param3']
+    FR = dataf[closest_points_index]
+
+    # Fit the data to generate the plot
+    c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
+    c_param2 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param2'] ).item()
+
+    fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; param2 "+str(round(c_param2,3)), fontsize=14)
 
     param3_range = np.linspace(0.55,1.0,100)
 
     # create the X dimension to be fitted
     Xo = pd.DataFrame( {col: [pd.NA] * len(param3_range) for col in datas.columns} )
     Xo['param1'] = c_param1
-    Xo['param2'] = c_trq
+    Xo['param2'] = c_param2
     Xo['param3'] = param3_range
 
     X = Xo.copy()
@@ -462,29 +474,16 @@ for c in cases_param1_param2:
 
     Y1 = my_predicts(model, X.to_numpy())
 
-    # get the closest of the function data
-    df = pd.DataFrame(dataso)
-    df['distance'] = np.sqrt((df['param1'] - c_param1)**2 + (df['param2'] - c_trq)**2)
-
-    # Get the row(s) with the smallest distance
-    closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
-    XR = dataso.loc[closest_points_index]['param3']
-    FR = dataf[closest_points_index]
-
     # plot
-    plt.plot(param3_range, Y1.T, lw=0.5, label=' fitted')
-    plt.scatter(XR, FR.T, lw=0.5, marker='o', label=' closest')
-
-    for i, (x, y) in enumerate(zip(XR, FR.T)):
-        label = f"param1={dataso.loc[closest_points_index[i], 'param1']}, param2={dataso.loc[closest_points_index[i], 'param2']}"
-        plt.text(x, y, label, fontsize=8, ha='right', va='bottom')
+    plt.plot(param3_range, Y1.T, lw=0.5, label='fitted')
+    plt.scatter(XR, FR.T, lw=0.5, marker='o', label='ref')
 
     ax.set_xlabel('param3')
     ax.set_ylabel('var1')
 
     plt.legend()
 
-    plt.savefig('the_plot_for_'+str(c_nam)+'.png')
+    plt.savefig('the_plot_for_'+str(c_name)+'.png')
     plt.close()
 
 
