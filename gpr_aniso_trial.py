@@ -103,6 +103,7 @@ def check_mean(mean, refd):
 
     msg = "Training errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
     print(msg)
+    return msg
 
 
 # My wrapper of predict functions
@@ -220,7 +221,7 @@ if method == 'gpr.scikit':
     model.fit(datas, dataf, optimizer=lambda obj_func, initial_theta, bounds: 
         [loss.append(val[1]) or val for val in [obj_func(initial_theta)]][0])
     mean = my_predicts(model, datas.to_numpy())
-    check_mean(mean, dataf.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
     msg = "Training Kernel: " + str(model.kernel_)
     print(msg)
@@ -289,7 +290,7 @@ elif method == 'gpr.gpflow':
 
     # Predict on refit space and compute delta
     mean = my_predicts(posterior_gpr, datas.to_numpy())
-    check_mean(mean, dataf.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
@@ -329,7 +330,7 @@ elif method == 'nn.tf':
 
     # Predict on refit space and compute delta
     mean = my_predicts(model, datas.to_numpy())
-    check_mean(mean, dataf.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
@@ -375,7 +376,7 @@ elif method == 'at.tf':
 
     # Predict on refit space and compute delta
     mean = my_predicts(model, datas.to_numpy())
-    check_mean(mean, dataf.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
