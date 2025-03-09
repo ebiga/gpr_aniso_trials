@@ -103,6 +103,7 @@ def check_mean(mean, refd):
 
     msg = "Training errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
     print(msg)
+    return msg
 
 
 # My wrapper of predict functions
@@ -130,8 +131,6 @@ def my_predicts(model, X):
 
 
 
-
-
 flightlog = open('log.txt', 'w')
 start_time = time.time()
 
@@ -148,7 +147,8 @@ if_filter_input = True
 #  'gpr.gpflow': GPR by GPFlow
 #  'gpr.gpytorch' (not available)
 #  'nn.tf': Neural network by tensorflow/keras
-method = 'nn.tf'
+#  'at.tf': Neural network by tensorflow/keras with an attention layer
+method = 'at.tf'
 
 # let the hyperparameters by optmised? otherwise, you must provide them
 if_train_optim = True
@@ -200,6 +200,7 @@ for i, b in enumerate(brkpts):
 ### TRAIN THE MODELS
 
 if method == 'gpr.scikit':
+    loss = []
 
     # Define the kernel parameters - will be overwritten in case of optimisation
     if not if_train_aniso:
@@ -217,9 +218,10 @@ if method == 'gpr.scikit':
         model = GaussianProcessRegressor(kernel=kernel, optimizer=None)
 
     # Train model
-    model.fit(datas, dataf)
+    model.fit(datas, dataf, optimizer=lambda obj_func, initial_theta, bounds: 
+        [loss.append(val[1]) or val for val in [obj_func(initial_theta)]][0])
     mean = my_predicts(model, datas.to_numpy())
-    check_mean(mean, dataf.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
     msg = "Training Kernel: " + str(model.kernel_)
     print(msg)
@@ -240,6 +242,8 @@ elif method == 'gpr.gpflow':
     opt = gpflow.optimizers.Scipy()
 
     if if_train_optim:
+        loss = []
+
         # Step 1: Make an initial guess with a reduced number of points
         r_datas, r_dataf = reduce_point_cloud(datas.to_numpy(), dataf.to_numpy().reshape(-1,1), target_fraction=r_numberofpoints)
         r_gpr = gpflow.models.GPR(data=(r_datas, r_dataf), kernel=kernel, noise_variance=None)
@@ -270,7 +274,7 @@ elif method == 'gpr.gpflow':
         gpflow.set_trainable(model.likelihood.variance, False)
 
         # Optimize the full model
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=options)
+        opt.minimize(model.training_loss, variables=model.trainable_variables, options=options, step_callback=lambda step, var, val: loss.append(val))
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
@@ -286,7 +290,7 @@ elif method == 'gpr.gpflow':
 
     # Predict on refit space and compute delta
     mean = my_predicts(posterior_gpr, datas.to_numpy())
-    check_mean(mean, dataf.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
@@ -310,11 +314,12 @@ elif method == 'nn.tf':
 
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
 
-        model.fit(
+        history = model.fit(
             datas.to_numpy(),
             dataf.to_numpy(),
             verbose=0, epochs=20000, batch_size=64,
             )
+        loss = history.history['loss']
 
         # store the model for reuse
         model.save(trained_model_file)
@@ -325,18 +330,75 @@ elif method == 'nn.tf':
 
     # Predict on refit space and compute delta
     mean = my_predicts(model, datas.to_numpy())
-    check_mean(mean, dataf.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
+
+
+
+elif method == 'at.tf':
+
+    trained_model_file = 'model_training_att' + '.keras'
+
+    # Setup the neural network
+    if if_train_optim:
+        inputs = layers.Input(shape=(3,))
+
+        # Expand to (batch_size, 3)
+        re_inputs = layers.Lambda(lambda x: tf.expand_dims(x, axis=1))(inputs)
+
+        # Apply Multi-Head Attention
+        attention_output = layers.MultiHeadAttention(num_heads=1, key_dim=3)(re_inputs, re_inputs)
+
+        # Squeeze back to (batch_size, 3)
+        attention_output = layers.Lambda(lambda x: tf.squeeze(x, axis=1), output_shape=(None, 3))(attention_output)
+
+        # Fully connected layers
+        dense_output = layers.Dense(1024, activation="elu", kernel_initializer='he_normal')(attention_output)
+        final_output = layers.Dense(1)(dense_output)
+
+        # Create model
+        model = keras.models.Model(inputs=inputs, outputs=final_output)
+
+        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
+
+        history = model.fit(
+            datas.to_numpy(),
+            dataf.to_numpy(),
+            verbose=0, epochs=5000, batch_size=64,
+            )
+        loss = history.history['loss']
+
+        # store the model for reuse
+        model.save(trained_model_file)
+    
+    else:
+        # We simply insert the input data into the kernel
+        model = tf.keras.models.load_model(trained_model_file)
+
+    # Predict on refit space and compute delta
+    mean = my_predicts(model, datas.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
 
 ### PLOTTING
 
+# training convergence
+plt.plot(np.array(loss), label='Training Loss')
+plt.yscale('log')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Loss Convergence')
+plt.legend()
+plt.savefig('convergence_'+str(method)+'.png')
+plt.close()
+
+
 # contours
 param3_range = [0.777778, 0.888889]
 for v in param3_range:
     fig = plt.figure(figsize=(12, 10))
-    fig.suptitle("Param3 "+str(v), fontsize=14)
+    fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
     ax = fig.add_subplot(111)
 
     # filtering the slice
@@ -365,7 +427,7 @@ for v in param3_range:
         Line2D([0], [0], color='black', linestyle='solid' , linewidth=1.0),
         Line2D([0], [0], color='black', linestyle='dashed', linewidth=0.5),
     ]
-    labels = ['ref', ' fitted']
+    labels = ['ref', 'fitted']
     plt.legend(lines, labels)
 
     ax.set_xlabel('param1')
@@ -377,22 +439,34 @@ for v in param3_range:
 
 # X-Ys
 cases_param1_param2 = [['c1', 13.250000, 0.126364], ['c2', 27.800000, 0.672727]]
+
 for c in cases_param1_param2:
     fig = plt.figure(figsize=(12, 10))
     ax = fig.add_subplot(111)
 
-    c_nam = c[0]
-    c_param1 = c[1]
-    c_trq = c[2]
+    c_name = c[0]
 
-    fig.suptitle("Condition  "+str(c_nam), fontsize=14)
+    # get the closest of the function data
+    df = pd.DataFrame(dataso)
+    df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df['param2'] - c[2])**2)
+    closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
+
+    # get the scattered points closest to the references
+    XR = dataso.loc[closest_points_index]['param3']
+    FR = dataf[closest_points_index]
+
+    # Fit the data to generate the plot
+    c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
+    c_param2 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param2'] ).item()
+
+    fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; param2 "+str(round(c_param2,3)), fontsize=14)
 
     param3_range = np.linspace(0.55,1.0,100)
 
     # create the X dimension to be fitted
     Xo = pd.DataFrame( {col: [pd.NA] * len(param3_range) for col in datas.columns} )
     Xo['param1'] = c_param1
-    Xo['param2'] = c_trq
+    Xo['param2'] = c_param2
     Xo['param3'] = param3_range
 
     X = Xo.copy()
@@ -401,29 +475,16 @@ for c in cases_param1_param2:
 
     Y1 = my_predicts(model, X.to_numpy())
 
-    # get the closest of the function data
-    df = pd.DataFrame(dataso)
-    df['distance'] = np.sqrt((df['param1'] - c_param1)**2 + (df['param2'] - c_trq)**2)
-
-    # Get the row(s) with the smallest distance
-    closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
-    XR = dataso.loc[closest_points_index]['param3']
-    FR = dataf[closest_points_index]
-
     # plot
-    plt.plot(param3_range, Y1.T, lw=0.5, label=' fitted')
-    plt.scatter(XR, FR.T, lw=0.5, marker='o', label=' closest')
-
-    for i, (x, y) in enumerate(zip(XR, FR.T)):
-        label = f"param1={dataso.loc[closest_points_index[i], 'param1']}, param2={dataso.loc[closest_points_index[i], 'param2']}"
-        plt.text(x, y, label, fontsize=8, ha='right', va='bottom')
+    plt.plot(param3_range, Y1.T, lw=0.5, label='fitted')
+    plt.scatter(XR, FR.T, lw=0.5, marker='o', label='ref')
 
     ax.set_xlabel('param3')
     ax.set_ylabel('var1')
 
     plt.legend()
 
-    plt.savefig('the_plot_for_'+str(c_nam)+'.png')
+    plt.savefig('the_plot_for_'+str(c_name)+'.png')
     plt.close()
 
 
