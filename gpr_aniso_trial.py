@@ -23,11 +23,19 @@ gpflow.config.set_default_float('float64')
 tf.random.set_seed(42)
 keras.utils.set_random_seed(42)
 
-# gpflow minimise options
-options = {
+
+# Optimisation options
+gpflow_options = {
     "maxiter": 1500,
     "gtol": 1e-9,
     "ftol": 1e-9,
+}
+
+keras_options = {
+    "learning_rate": 0.002,
+    "epochs": 1250,
+    "batch_size": 32,
+    "hidden_layers": 1024,
 }
 
 
@@ -250,7 +258,7 @@ elif method == 'gpr.gpflow':
         r_gpr.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
         gpflow.set_trainable(r_gpr.likelihood.variance, False)
 
-        opt.minimize(r_gpr.training_loss, variables=r_gpr.trainable_variables, options=options)
+        opt.minimize(r_gpr.training_loss, variables=r_gpr.trainable_variables, options=gpflow_options)
 
         msg = "Training Kernel - initial condition: " + str(generate_gpflow_kernel_code(r_gpr.kernel))
         print(msg)
@@ -274,7 +282,7 @@ elif method == 'gpr.gpflow':
         gpflow.set_trainable(model.likelihood.variance, False)
 
         # Optimize the full model
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=options, step_callback=lambda step, var, val: loss.append(val))
+        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=lambda step, var, val: loss.append(val))
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
@@ -308,16 +316,16 @@ elif method == 'nn.tf':
         model = keras.Sequential([
             layers.Input(shape=(Ndimensions,)),
             layers.Dense(Ndimensions),
-                layers.Dense(1024, activation='elu', kernel_initializer='he_normal'),
+                layers.Dense(keras_options["hidden_layers"], activation='elu', kernel_initializer='he_normal'),
             layers.Dense(1)
             ])
 
-        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
+        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
         history = model.fit(
             datas.to_numpy(),
             dataf.to_numpy(),
-            verbose=0, epochs=20000, batch_size=64,
+            verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
             )
         loss = history.history['loss']
 
@@ -352,18 +360,18 @@ elif method == 'at.tf':
         attention_output = layers.Lambda(lambda x: tf.squeeze(x, axis=1), output_shape=(None, 3))(attention_output)
 
         # Fully connected layers
-        dense_output = layers.Dense(1024, activation="elu", kernel_initializer='he_normal')(attention_output)
+        dense_output = layers.Dense(keras_options["hidden_layers"], activation="elu", kernel_initializer='he_normal')(attention_output)
         final_output = layers.Dense(1)(dense_output)
 
         # Create model
         model = keras.models.Model(inputs=inputs, outputs=final_output)
 
-        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
+        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
         history = model.fit(
             datas.to_numpy(),
             dataf.to_numpy(),
-            verbose=0, epochs=5000, batch_size=64,
+            verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
             )
         loss = history.history['loss']
 
