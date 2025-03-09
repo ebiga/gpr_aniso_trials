@@ -395,7 +395,8 @@ plt.close()
 
 
 # contours
-param3_range = [0.777778, 0.888889]
+param3_range = [0.7, 0.8]
+
 for v in param3_range:
     fig = plt.figure(figsize=(12, 10))
     fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
@@ -438,7 +439,8 @@ for v in param3_range:
 
 
 # X-Ys
-cases_param1_param2 = [['c1', 13.250000, 0.126364], ['c2', 27.800000, 0.672727]]
+cases_param1_param2 = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
+param3_range = np.linspace(0.55,1.0,100)
 
 for c in cases_param1_param2:
     fig = plt.figure(figsize=(12, 10))
@@ -460,8 +462,6 @@ for c in cases_param1_param2:
     c_param2 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param2'] ).item()
 
     fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; param2 "+str(round(c_param2,3)), fontsize=14)
-
-    param3_range = np.linspace(0.55,1.0,100)
 
     # create the X dimension to be fitted
     Xo = pd.DataFrame( {col: [pd.NA] * len(param3_range) for col in datas.columns} )
