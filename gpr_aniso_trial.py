@@ -140,6 +140,20 @@ def my_predicts(model, X):
         raise TypeError(f"Unsupported model type: {type(model)}")
 
 
+# GPYTorch loves a class, doesn't it
+class GridGPRegressionModel(gpytorch.models.ExactGP):
+    def __init__(self, grid, train_x, train_y, likelihood):
+        super(GridGPRegressionModel, self).__init__(train_x, train_y, likelihood)
+        num_dims = train_x.size(-1)
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = gpytorch.kernels.GridKernel(gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=3, lengthscale=torch.tensor([1.0, 1.0, 1.0])), outputscale=1.0**2), grid=grid)
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+
 
 flightlog = open('log.txt', 'w')
 start_time = time.time()
@@ -321,14 +335,9 @@ elif method == 'gpr.gpytorch':
     train_y = torch.tensor(dataf.to_numpy(), dtype=torch.float64)
 
     # Define the model
-    kernel = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=3, lengthscale=torch.tensor([1.0, 1.0, 1.0])), outputscale=1.0**2)
-    gridkernel = gpytorch.kernels.GridKernel(kernel, grid=grid)
-
     likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(1e-6, dtype=torch.float64))
 
-    model = gpytorch.models.ExactGP(train_x, train_y, likelihood)
-    model.mean_module = gpytorch.means.ConstantMean()
-    model.covar_module = kernel
+    model = GridGPRegressionModel(grid, train_x, train_y, likelihood)
 
     if if_train_optim:
         model.train()
