@@ -126,18 +126,17 @@ def my_predicts(model, X):
     elif "gpflow" in module:
         return model.predict_f(X)[0].numpy().reshape(-1)
     
-    elif "gpytorch" in module:
-        print('Nothing here yet.')
-        # model.eval()  # Ensure it's in evaluation mode
-        # with torch.no_grad():
-        #     pred = model(X)
-        # return pred.mean, pred.variance
-    
     elif "tensorflow" in module or "keras" in module:  # TensorFlow/Keras
         return model.predict(X).reshape(-1)
     
     else:
-        raise TypeError(f"Unsupported model type: {type(model)}")
+        if isinstance(model, gpytorch.models.GP):
+            model.eval()
+            with torch.no_grad():
+                pred = model(torch.tensor(X, dtype=torch.float64))
+            return pred.mean.numpy().reshape(-1)
+        else:
+            raise TypeError(f"Unsupported model type: {type(model)}")
 
 
 # GPYTorch loves a class, doesn't it
@@ -249,6 +248,8 @@ if method == 'gpr.scikit':
     # Train model
     model.fit(datas, dataf, optimizer=lambda obj_func, initial_theta, bounds: 
         [loss.append(val[1]) or val for val in [obj_func(initial_theta)]][0])
+    
+    # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
     flightlog.write(check_mean(mean, dataf.to_numpy()))
 
@@ -317,7 +318,7 @@ elif method == 'gpr.gpflow':
     # store the posterior for faster prediction
     posterior_gpr = model.posterior()
 
-    # Predict on refit space and compute delta
+    # Predict and evaluate
     mean = my_predicts(posterior_gpr, datas.to_numpy())
     flightlog.write(check_mean(mean, dataf.to_numpy()))
 
@@ -369,12 +370,8 @@ elif method == 'gpr.gpytorch':
         likelihood.eval()
 
     # Predict and evaluate
-    with torch.no_grad():
-        model.eval()
-        likelihood.eval()
-        pred = model(train_x)
-        mean = pred.mean.numpy()
-        flightlog.write(check_mean(mean, dataf.to_numpy()))
+    mean = my_predicts(model, datas.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
@@ -407,7 +404,7 @@ elif method == 'nn.tf':
         # We simply insert the input data into the kernel
         model = tf.keras.models.load_model(trained_model_file)
 
-    # Predict on refit space and compute delta
+    # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
     flightlog.write(check_mean(mean, dataf.to_numpy()))
 
@@ -453,7 +450,7 @@ elif method == 'at.tf':
         # We simply insert the input data into the kernel
         model = tf.keras.models.load_model(trained_model_file)
 
-    # Predict on refit space and compute delta
+    # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
     flightlog.write(check_mean(mean, dataf.to_numpy()))
 
