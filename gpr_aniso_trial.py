@@ -359,15 +359,11 @@ elif method == 'gpr.gpytorch':
             # Calc loss and backprop gradients
             loss = -mll(output, train_y)
             loss.backward()
-            print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f   noise: %.3f' % (
-                i + 1, training_iter, loss.item(),
-                model.covar_module.base_kernel.lengthscale.item(),
-                model.likelihood.noise.item()
-            ))
+            print('Iter %d/%d - Loss: %.3f' % (i + 1, training_iter, loss.item()))
             optimizer.step()
 
-        print("Training Kernel:", model.covar_module)
-        flightlog.write(str(model.covar_module) + '\n')
+        print("Lengthscale:", model.covar_module.base_kernel.base_kernel.lengthscale)
+        print("Outputscale (variance):", model.covar_module.base_kernel.outputscale)
     else:
         model.eval()
         likelihood.eval()
