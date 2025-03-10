@@ -40,6 +40,10 @@ keras_options = {
     "hidden_layers": 1024,
 }
 
+gpytorch_options = {
+    "maxiter": 1500,
+}
+
 
 # Function to write out gpflow kernel params for the future
 def generate_gpflow_kernel_code(kernel):
@@ -341,6 +345,8 @@ elif method == 'gpr.gpytorch':
     model = GridGPRegressionModel(grid, train_x, train_y, likelihood)
 
     if if_train_optim:
+        loss = []
+
         model.train()
         likelihood.train()
 
@@ -350,17 +356,15 @@ elif method == 'gpr.gpytorch':
         # "Loss" for GPs - the marginal log likelihood
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
-        training_iter = 50
-
-        for i in range(training_iter):
+        for i in range(gpytorch_options['maxiter']):
             # Zero gradients from previous iteration
             optimizer.zero_grad()
             # Output from model
             output = model(train_x)
             # Calc loss and backprop gradients
-            loss = -mll(output, train_y)
-            loss.backward()
-            print('Iter %d/%d - Loss: %.3f' % (i + 1, training_iter, loss.item()))
+            opt_loss = -mll(output, train_y)
+            opt_loss.backward()
+            loss.append(opt_loss.item())
             optimizer.step()
 
         print("Lengthscale:", model.covar_module.base_kernel.base_kernel.lengthscale)
