@@ -335,7 +335,7 @@ elif method == 'gpr.gpytorch':
     train_y = torch.tensor(dataf.to_numpy(), dtype=torch.float64)
 
     # Define the model
-    likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(1e-6, dtype=torch.float64))
+    likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1e-6), dtype=torch.float64))
 
     model = GridGPRegressionModel(grid, train_x, train_y, likelihood)
 
