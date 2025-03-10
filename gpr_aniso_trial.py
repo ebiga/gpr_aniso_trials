@@ -4,6 +4,8 @@ import sklearn
 import silence_tensorflow.auto
 import gpflow
 import time
+import torch
+import gpytorch
 import matplotlib
 matplotlib.use('TkAgg')
 
@@ -177,6 +179,10 @@ data_bases = pd.read_csv('./input.csv')
 
 Ndimensions = 3 # first 3 columns have the breakpoints
 
+NgridX = 141
+NgridY = 66
+NgridZ = 5
+
 brkpts = data_bases.columns[:Ndimensions].to_numpy()
 output = data_bases.columns[Ndimensions]
 
@@ -184,6 +190,7 @@ output = data_bases.columns[Ndimensions]
 if if_filter_input:
     # in this case I know every 4th line of the grid is an integer, so I'll get only these
     data_basel = data_bases[(data_bases['param1'] % 1 == 0)]
+    NgridX = int((NgridX-1)/4 + 1)
 else:
     data_basel = data_bases.copy()
 
@@ -303,7 +310,66 @@ elif method == 'gpr.gpflow':
 
 
 elif method == 'gpr.gpytorch':
-    print('Sorry. Nothing here.')
+
+    # Build a gpytorch _grid_ to benefit from the grid method
+    grid_sizes  = [NgridX, NgridY, NgridZ]
+    grid_bounds = [(min(datas.to_numpy()[:,0]), max(datas.to_numpy()[:,0])), (min(datas.to_numpy()[:,1]), max(datas.to_numpy()[:,1])), (min(datas.to_numpy()[:,2]), max(datas.to_numpy()[:,2]))]
+    grid = gpytorch.utils.grid.create_grid(grid_sizes, grid_bounds, extend=False, dtype=torch.float64)
+
+    # Convert data to torch tensors
+    train_x = gpytorch.utils.grid.create_data_from_grid(grid)
+    train_y = torch.tensor(dataf.to_numpy(), dtype=torch.float64)
+
+    # Define the model
+    kernel = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=3, lengthscale=torch.tensor([1.0, 1.0, 1.0])), outputscale=1.0**2)
+    gridkernel = gpytorch.kernels.GridKernel(kernel, grid=grid)
+
+    likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(1e-6, dtype=torch.float64))
+
+    model = gpytorch.models.ExactGP(train_x, train_y, likelihood)
+    model.mean_module = gpytorch.means.ConstantMean()
+    model.covar_module = kernel
+
+    if if_train_optim:
+        model.train()
+        likelihood.train()
+
+        # Use Adam, hey Adam, me again, an apple
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+
+        # "Loss" for GPs - the marginal log likelihood
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+
+        training_iter = 50
+
+        for i in range(training_iter):
+            # Zero gradients from previous iteration
+            optimizer.zero_grad()
+            # Output from model
+            output = model(train_x)
+            # Calc loss and backprop gradients
+            loss = -mll(output, train_y)
+            loss.backward()
+            print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f   noise: %.3f' % (
+                i + 1, training_iter, loss.item(),
+                model.covar_module.base_kernel.lengthscale.item(),
+                model.likelihood.noise.item()
+            ))
+            optimizer.step()
+
+        print("Training Kernel:", model.covar_module)
+        flightlog.write(str(model.covar_module) + '\n')
+    else:
+        model.eval()
+        likelihood.eval()
+
+    # Predict and evaluate
+    with torch.no_grad():
+        model.eval()
+        likelihood.eval()
+        pred = model(train_x)
+        mean = pred.mean.numpy()
+        flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
