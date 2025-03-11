@@ -4,6 +4,8 @@ import sklearn
 import silence_tensorflow.auto
 import gpflow
 import time
+import torch
+import gpytorch
 import matplotlib
 matplotlib.use('TkAgg')
 
@@ -19,9 +21,11 @@ from tensorflow import keras
 from keras import layers
 
 gpflow.config.set_default_float('float64')
+torch.set_default_dtype(torch.float64)
 
 tf.random.set_seed(42)
 keras.utils.set_random_seed(42)
+torch.manual_seed(42)
 
 
 # Optimisation options
@@ -36,6 +40,10 @@ keras_options = {
     "epochs": 1250,
     "batch_size": 32,
     "hidden_layers": 1024,
+}
+
+gpytorch_options = {
+    "maxiter": 1500,
 }
 
 
@@ -124,18 +132,31 @@ def my_predicts(model, X):
     elif "gpflow" in module:
         return model.predict_f(X)[0].numpy().reshape(-1)
     
-    elif "gpytorch" in module:
-        print('Nothing here yet.')
-        # model.eval()  # Ensure it's in evaluation mode
-        # with torch.no_grad():
-        #     pred = model(X)
-        # return pred.mean, pred.variance
-    
     elif "tensorflow" in module or "keras" in module:  # TensorFlow/Keras
         return model.predict(X).reshape(-1)
     
     else:
-        raise TypeError(f"Unsupported model type: {type(model)}")
+        if isinstance(model, gpytorch.models.GP):
+            model.eval()
+            with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                pred = model(torch.from_numpy(X))
+            return pred.mean.numpy().reshape(-1)
+        else:
+            raise TypeError(f"Unsupported model type: {type(model)}")
+
+
+# GPYTorch loves a class, doesn't it
+class GridGPRegressionModel(gpytorch.models.ExactGP):
+    def __init__(self, grid, train_x, train_y, likelihood):
+        super(GridGPRegressionModel, self).__init__(train_x, train_y, likelihood)
+        num_dims = train_x.size(-1)
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = gpytorch.kernels.GridKernel(gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=3, lengthscale=torch.tensor([1.0, 1.0, 1.0])), outputscale=1.0**2), grid=grid)
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 
 
@@ -177,6 +198,10 @@ data_bases = pd.read_csv('./input.csv')
 
 Ndimensions = 3 # first 3 columns have the breakpoints
 
+NgridX = 141
+NgridY = 66
+NgridZ = 5
+
 brkpts = data_bases.columns[:Ndimensions].to_numpy()
 output = data_bases.columns[Ndimensions]
 
@@ -184,6 +209,7 @@ output = data_bases.columns[Ndimensions]
 if if_filter_input:
     # in this case I know every 4th line of the grid is an integer, so I'll get only these
     data_basel = data_bases[(data_bases['param1'] % 1 == 0)]
+    NgridX = int((NgridX-1)/4 + 1)
 else:
     data_basel = data_bases.copy()
 
@@ -228,6 +254,8 @@ if method == 'gpr.scikit':
     # Train model
     model.fit(datas, dataf, optimizer=lambda obj_func, initial_theta, bounds: 
         [loss.append(val[1]) or val for val in [obj_func(initial_theta)]][0])
+    
+    # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
     flightlog.write(check_mean(mean, dataf.to_numpy()))
 
@@ -296,14 +324,60 @@ elif method == 'gpr.gpflow':
     # store the posterior for faster prediction
     posterior_gpr = model.posterior()
 
-    # Predict on refit space and compute delta
+    # Predict and evaluate
     mean = my_predicts(posterior_gpr, datas.to_numpy())
     flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
 elif method == 'gpr.gpytorch':
-    print('Sorry. Nothing here.')
+
+    # Build a gpytorch _grid_ to benefit from the grid method
+    grid_sizes  = [NgridX, NgridY, NgridZ]
+    grid_bounds = [(min(datas.to_numpy()[:,0]), max(datas.to_numpy()[:,0])), (min(datas.to_numpy()[:,1]), max(datas.to_numpy()[:,1])), (min(datas.to_numpy()[:,2]), max(datas.to_numpy()[:,2]))]
+    grid = gpytorch.utils.grid.create_grid(grid_sizes, grid_bounds, extend=False)
+
+    # Convert data to torch tensors
+    train_x = gpytorch.utils.grid.create_data_from_grid(grid)
+    train_y = torch.tensor(dataf.to_numpy())
+
+    # Define the model
+    likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1e-6)))
+
+    model = GridGPRegressionModel(grid, train_x, train_y, likelihood)
+
+    if if_train_optim:
+        loss = []
+
+        model.train()
+        likelihood.train()
+
+        # Use Adam, hey Adam, me again, an apple
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+
+        # "Loss" for GPs - the marginal log likelihood
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+
+        for i in range(gpytorch_options['maxiter']):
+            # Zero gradients from previous iteration
+            optimizer.zero_grad()
+            # Output from model
+            output = model(train_x)
+            # Calc loss and backprop gradients
+            opt_loss = -mll(output, train_y)
+            opt_loss.backward()
+            loss.append(opt_loss.item())
+            optimizer.step()
+
+        print("Lengthscale:", model.covar_module.base_kernel.base_kernel.lengthscale)
+        print("Outputscale (variance):", model.covar_module.base_kernel.outputscale)
+    else:
+        model.eval()
+        likelihood.eval()
+
+    # Predict and evaluate
+    mean = my_predicts(model, datas.to_numpy())
+    flightlog.write(check_mean(mean, dataf.to_numpy()))
 
 
 
@@ -336,7 +410,7 @@ elif method == 'nn.tf':
         # We simply insert the input data into the kernel
         model = tf.keras.models.load_model(trained_model_file)
 
-    # Predict on refit space and compute delta
+    # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
     flightlog.write(check_mean(mean, dataf.to_numpy()))
 
@@ -382,7 +456,7 @@ elif method == 'at.tf':
         # We simply insert the input data into the kernel
         model = tf.keras.models.load_model(trained_model_file)
 
-    # Predict on refit space and compute delta
+    # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
     flightlog.write(check_mean(mean, dataf.to_numpy()))
 
