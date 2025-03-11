@@ -305,7 +305,7 @@ elif method == 'gpr.gpflow':
         )
 
         # Create the full GPR model
-        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1, 1)), kernel=kernel, noise_variance=None)
+        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
         model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
         gpflow.set_trainable(model.likelihood.variance, False)
 
