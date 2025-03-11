@@ -24,6 +24,7 @@ gpflow.config.set_default_float('float64')
 
 tf.random.set_seed(42)
 keras.utils.set_random_seed(42)
+torch.manual_seed(42)
 
 
 # Optimisation options
