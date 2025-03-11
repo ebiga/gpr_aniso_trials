@@ -149,9 +149,8 @@ def my_predicts(model, X):
 class GridGPRegressionModel(gpytorch.models.ExactGP):
     def __init__(self, grid, train_x, train_y, likelihood):
         super(GridGPRegressionModel, self).__init__(train_x, train_y, likelihood)
-        num_dims = train_x.size(-1)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.GridKernel(gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=3, lengthscale=torch.tensor([1.0, 1.0, 1.0])), outputscale=1.0**2), grid=grid)
+        self.covar_module = gpytorch.kernels.GridKernel(gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=Ndimensions, lengthscale=torch.tensor(np.full(Ndimensions, 1.0))), outputscale=1.0**2), grid=grid)
 
     def forward(self, x):
         mean_x = self.mean_module(x)
@@ -431,16 +430,16 @@ elif method == 'at.tf':
 
     # Setup the neural network
     if if_train_optim:
-        inputs = layers.Input(shape=(3,))
+        inputs = layers.Input(shape=(Ndimensions,))
 
-        # Expand to (batch_size, 3)
+        # Expand to (batch_size, Ndimensions)
         re_inputs = layers.Lambda(lambda x: tf.expand_dims(x, axis=1))(inputs)
 
         # Apply Multi-Head Attention
-        attention_output = layers.MultiHeadAttention(num_heads=1, key_dim=3)(re_inputs, re_inputs)
+        attention_output = layers.MultiHeadAttention(num_heads=1, key_dim=Ndimensions)(re_inputs, re_inputs)
 
-        # Squeeze back to (batch_size, 3)
-        attention_output = layers.Lambda(lambda x: tf.squeeze(x, axis=1), output_shape=(None, 3))(attention_output)
+        # Squeeze back to (batch_size, Ndimensions)
+        attention_output = layers.Lambda(lambda x: tf.squeeze(x, axis=1), output_shape=(None, Ndimensions))(attention_output)
 
         # Fully connected layers
         dense_output = layers.Dense(keras_options["hidden_layers"], activation="elu", kernel_initializer='he_normal')(attention_output)
