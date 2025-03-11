@@ -266,6 +266,7 @@ if method == 'gpr.scikit':
 
 
 elif method == 'gpr.gpflow':
+    loss = []
 
     # Define the kernel parameters - will be overwritten in case of optimisation
     if not if_train_aniso:
@@ -278,8 +279,6 @@ elif method == 'gpr.gpflow':
     opt = gpflow.optimizers.Scipy()
 
     if if_train_optim:
-        loss = []
-
         # Step 1: Make an initial guess with a reduced number of points
         r_datas, r_dataf = reduce_point_cloud(datas.to_numpy(), dataf.to_numpy().reshape(-1,1), target_fraction=r_numberofpoints)
         r_gpr = gpflow.models.GPR(data=(r_datas, r_dataf), kernel=kernel, noise_variance=None)
@@ -392,7 +391,7 @@ elif method == 'gpr.gpytorch':
 
 
 elif method == 'nn.tf':
-
+    loss = []
     trained_model_file = 'model_training_' + '.keras'
 
     # Setup the neural network
@@ -427,7 +426,7 @@ elif method == 'nn.tf':
 
 
 elif method == 'at.tf':
-
+    loss = []
     trained_model_file = 'model_training_att' + '.keras'
 
     # Setup the neural network
