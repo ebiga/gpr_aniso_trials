@@ -331,6 +331,8 @@ elif method == 'gpr.gpflow':
 
 
 elif method == 'gpr.gpytorch':
+    loss = []
+    trained_model_file = 'model_training_' + '.pth'
 
     # Build a gpytorch _grid_ to benefit from the grid method
     grid_sizes  = [NgridX, NgridY, NgridZ]
@@ -341,14 +343,13 @@ elif method == 'gpr.gpytorch':
     train_x = gpytorch.utils.grid.create_data_from_grid(grid)
     train_y = torch.tensor(dataf.to_numpy())
 
-    # Define the model
-    likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1e-6)))
-
-    model = GridGPRegressionModel(grid, train_x, train_y, likelihood)
-
     if if_train_optim:
-        loss = []
 
+        # Define the model
+        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1e-6)))
+        model = GridGPRegressionModel(grid, train_x, train_y, likelihood)
+
+        # set the mode to training
         model.train()
         likelihood.train()
 
@@ -369,9 +370,18 @@ elif method == 'gpr.gpytorch':
             loss.append(opt_loss.item())
             optimizer.step()
 
-        print("Lengthscale:", model.covar_module.base_kernel.base_kernel.lengthscale)
-        print("Outputscale (variance):", model.covar_module.base_kernel.outputscale)
+        msg = "Lengthscale: " + str(model.covar_module.base_kernel.base_kernel.lengthscale.squeeze().tolist()) + "\n" \
+            + "Variance: " + str(model.covar_module.base_kernel.outputscale.item()) + "\n"
+        print(msg)
+        flightlog.write(msg)
+
+        # store the model for reuse
+        torch.save((model, likelihood), trained_model_file)
     else:
+        # We simply insert the input data into the kernel
+        model, likelihood = torch.load(trained_model_file, weights_only=False)
+
+        # set the mode to eval
         model.eval()
         likelihood.eval()
 
