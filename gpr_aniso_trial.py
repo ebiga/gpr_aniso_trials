@@ -335,7 +335,7 @@ elif method == 'gpr.gpytorch':
     # Build a gpytorch _grid_ to benefit from the grid method
     grid_sizes  = [NgridX, NgridY, NgridZ]
     grid_bounds = [(min(datas.to_numpy()[:,0]), max(datas.to_numpy()[:,0])), (min(datas.to_numpy()[:,1]), max(datas.to_numpy()[:,1])), (min(datas.to_numpy()[:,2]), max(datas.to_numpy()[:,2]))]
-    grid = gpytorch.utils.grid.create_grid(grid_sizes, grid_bounds, extend=False)
+    grid = gpytorch.utils.grid.create_grid(grid_sizes, grid_bounds, extend=False, dtype=torch.float64)
 
     # Convert data to torch tensors
     train_x = gpytorch.utils.grid.create_data_from_grid(grid)
