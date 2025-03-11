@@ -21,6 +21,7 @@ from tensorflow import keras
 from keras import layers
 
 gpflow.config.set_default_float('float64')
+torch.set_default_dtype(torch.float64)
 
 tf.random.set_seed(42)
 keras.utils.set_random_seed(42)
@@ -137,8 +138,8 @@ def my_predicts(model, X):
     else:
         if isinstance(model, gpytorch.models.GP):
             model.eval()
-            with torch.no_grad():
-                pred = model(torch.tensor(X, dtype=torch.float64))
+            with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                pred = model(torch.from_numpy(X))
             return pred.mean.numpy().reshape(-1)
         else:
             raise TypeError(f"Unsupported model type: {type(model)}")
@@ -334,14 +335,14 @@ elif method == 'gpr.gpytorch':
     # Build a gpytorch _grid_ to benefit from the grid method
     grid_sizes  = [NgridX, NgridY, NgridZ]
     grid_bounds = [(min(datas.to_numpy()[:,0]), max(datas.to_numpy()[:,0])), (min(datas.to_numpy()[:,1]), max(datas.to_numpy()[:,1])), (min(datas.to_numpy()[:,2]), max(datas.to_numpy()[:,2]))]
-    grid = gpytorch.utils.grid.create_grid(grid_sizes, grid_bounds, extend=False, dtype=torch.float64)
+    grid = gpytorch.utils.grid.create_grid(grid_sizes, grid_bounds, extend=False)
 
     # Convert data to torch tensors
     train_x = gpytorch.utils.grid.create_data_from_grid(grid)
-    train_y = torch.tensor(dataf.to_numpy(), dtype=torch.float64)
+    train_y = torch.tensor(dataf.to_numpy())
 
     # Define the model
-    likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1e-6), dtype=torch.float64))
+    likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1e-6)))
 
     model = GridGPRegressionModel(grid, train_x, train_y, likelihood)
 
