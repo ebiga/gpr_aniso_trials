@@ -417,7 +417,7 @@ elif method == 'nn.tf':
             dataf.to_numpy(),
             verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
             )
-        loss = history.history['loss']
+        loss = np.log(history.history['loss'])
 
         # store the model for reuse
         model.save(trained_model_file)
@@ -463,7 +463,7 @@ elif method == 'at.tf':
             dataf.to_numpy(),
             verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
             )
-        loss = history.history['loss']
+        loss = np.log(history.history['loss'])
 
         # store the model for reuse
         model.save(trained_model_file)
@@ -483,9 +483,8 @@ elif method == 'at.tf':
 
 # training convergence
 plt.plot(np.array(loss), label='Training Loss')
-plt.yscale('log')
 plt.xlabel('Epochs')
-plt.ylabel('Loss')
+plt.ylabel('Log(Loss)')
 plt.title('Loss Convergence')
 plt.legend()
 plt.savefig('convergence_'+str(method)+'.png')
