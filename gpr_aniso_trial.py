@@ -387,9 +387,9 @@ elif method == 'gpr.gpytorch':
         # We simply insert the input data into the kernel
         model, likelihood = torch.load(trained_model_file, weights_only=False)
 
-        # set the mode to eval
-        model.eval()
-        likelihood.eval()
+    # set the mode to eval
+    model.eval()
+    likelihood.eval()
 
     # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
