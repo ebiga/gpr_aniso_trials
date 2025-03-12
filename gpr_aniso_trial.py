@@ -167,8 +167,9 @@ start_time = time.time()
 
 ### USER OPTIONS
 
-# reduce the number of the input data (the number of points can be a challenge for memory tbh)
-if_filter_input = True
+# there are three sizes to pick from:
+#  full, mid, small
+select_input_size = 'small'
 
 # fitting methods available:
 #  'gpr.scikit': GPR by scikit-learn
@@ -193,28 +194,35 @@ r_numberofpoints = 0.5
 ### DATA POINTS
 
 ## training space
-data_bases = pd.read_csv('./input.csv')
+if select_input_size == 'full':
+    data_base = pd.read_csv('./input_f.csv')
+
+    NgridX = 141
+    NgridY = 66
+    NgridZ = 5
+
+elif select_input_size == 'mid':
+    data_base = pd.read_csv('./input_m.csv')
+
+    NgridX = 36
+    NgridY = 66
+    NgridZ = 5
+
+elif select_input_size == 'small':
+    data_base = pd.read_csv('./input_s.csv')
+
+    NgridX = 36
+    NgridY = 33
+    NgridZ = 5
 
 Ndimensions = 3 # first 3 columns have the breakpoints
 
-NgridX = 141
-NgridY = 66
-NgridZ = 5
-
-brkpts = data_bases.columns[:Ndimensions].to_numpy()
-output = data_bases.columns[Ndimensions]
-
-# clean up too much data for the sake of memory
-if if_filter_input:
-    # in this case I know every 4th line of the grid is an integer, so I'll get only these
-    data_basel = data_bases[(data_bases['param1'] % 1 == 0)]
-    NgridX = int((NgridX-1)/4 + 1)
-else:
-    data_basel = data_bases.copy()
-
 # separate breakpoints and output
-dataso = data_basel[brkpts].astype(np.float64)
-dataf  = data_basel[output].astype(np.float64)
+brkpts = data_base.columns[:Ndimensions].to_numpy()
+output = data_base.columns[Ndimensions]
+
+dataso = data_base[brkpts].astype(np.float64)
+dataf  = data_base[output].astype(np.float64)
 
 # make this nondimensional
 NormMin = np.full(Ndimensions, 0.)
