@@ -498,7 +498,7 @@ for v in param3_range:
 
 # X-Ys
 cases_param1_param2 = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
-param3_range = np.linspace(0.55,1.0,100)
+param3_range = np.linspace( min(dataso['param3']), max(dataso['param3']), 100 )
 
 for c in cases_param1_param2:
     fig = plt.figure(figsize=(12, 10))
