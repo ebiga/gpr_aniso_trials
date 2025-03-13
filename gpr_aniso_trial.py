@@ -122,18 +122,17 @@ def my_predicts(model, X):
         if isinstance(model, gpytorch.models.GP):
             model.eval()
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                pred = model(torch.from_numpy(X))
-            return pred.mean.numpy().reshape(-1)
+                return model(torch.tensor(X)).mean.detach().numpy()
         else:
             raise TypeError(f"Unsupported model type: {type(model)}")
 
 
 # GPYTorch loves a class, doesn't it
-class GridGPRegressionModel(gpytorch.models.ExactGP):
-    def __init__(self, grid, train_x, train_y, likelihood):
-        super(GridGPRegressionModel, self).__init__(train_x, train_y, likelihood)
+class GPRegressionModel(gpytorch.models.ExactGP):
+    def __init__(self, train_x, train_y, likelihood):
+        super(GPRegressionModel, self).__init__(train_x, train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.GridKernel(gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=Ndimensions, lengthscale=torch.tensor(np.full(Ndimensions, 1.0))), outputscale=1.0**2), grid=grid)
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=Ndimensions, lengthscale=torch.tensor(np.full(Ndimensions, 1.0))), outputscale=1.0**2)
 
     def forward(self, x):
         mean_x = self.mean_module(x)
@@ -311,20 +310,15 @@ elif method == 'gpr.gpytorch':
     loss = []
     trained_model_file = 'model_training_' + '.pth'
 
-    # Build a gpytorch _grid_ to benefit from the grid method
-    grid_sizes  = [NgridX, NgridY, NgridZ]
-    grid_bounds = [(min(datas.to_numpy()[:,0]), max(datas.to_numpy()[:,0])), (min(datas.to_numpy()[:,1]), max(datas.to_numpy()[:,1])), (min(datas.to_numpy()[:,2]), max(datas.to_numpy()[:,2]))]
-    grid = gpytorch.utils.grid.create_grid(grid_sizes, grid_bounds, extend=False, dtype=torch.float64)
-
     # Convert data to torch tensors
-    train_x = gpytorch.utils.grid.create_data_from_grid(grid)
+    train_x = torch.tensor(datas.to_numpy())
     train_y = torch.tensor(dataf.to_numpy())
 
     if if_train_optim:
 
         # Define the model
-        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1e-6)))
-        model = GridGPRegressionModel(grid, train_x, train_y, likelihood)
+        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
+        model = GPRegressionModel(train_x, train_y, likelihood)
 
         # set the mode to training
         model.train()
@@ -347,8 +341,9 @@ elif method == 'gpr.gpytorch':
             loss.append(opt_loss.item())
             optimizer.step()
 
-        msg = "Lengthscale: " + str(model.covar_module.base_kernel.base_kernel.lengthscale.squeeze().tolist()) + "\n" \
-            + "Variance: " + str(model.covar_module.base_kernel.outputscale.item()) + "\n"
+        msg = "Lengthscale: " + str(model.covar_module.base_kernel.lengthscale.squeeze().tolist()) + "\n" \
+            + "Variance: " + str(model.covar_module.outputscale.item()) + "\n"
+
         print(msg)
         flightlog.write(msg)
 
