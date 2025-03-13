@@ -214,13 +214,7 @@ if method == 'gpr.scikit':
     loss = []
 
     # Define the kernel parameters - will be overwritten in case of optimisation
-    if not if_train_aniso:
-        kernel = 1.**2 * RBF(length_scale=0.1) + \
-                 0.1**2 * RBF(length_scale=1.) + \
-                 0.01**2 * RBF(length_scale=10.)
-    else:
-        # It must be one length scale per variable!
-        kernel = 1.**2 * RBF(length_scale=[1., 1., 1.])
+    kernel = 1.**2 * RBF(length_scale=np.full(Ndimensions, 1.0))
 
     # Use a kernel info if provided, otherwise optimise
     if if_train_optim:
@@ -245,13 +239,8 @@ if method == 'gpr.scikit':
 elif method == 'gpr.gpflow':
     loss = []
 
-    # Define the kernel parameters - will be overwritten in case of optimisation
-    if not if_train_aniso:
-        kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=0.1) + \
-                 gpflow.kernels.SquaredExponential(variance=0.1**2, lengthscales=1.) + \
-                 gpflow.kernels.SquaredExponential(variance=0.01**2, lengthscales=10.)
-    else:
-        kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=[1., 1., 1.])
+    # Define the kernel parameters
+    kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=np.full(Ndimensions, 1.0))
 
     opt = gpflow.optimizers.Scipy()
 
