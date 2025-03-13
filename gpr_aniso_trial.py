@@ -21,6 +21,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers
+from gpflow.monitor import Monitor, MonitorTaskGroup
 
 gpflow.config.set_default_float('float64')
 torch.set_default_dtype(torch.float64)
@@ -254,7 +255,8 @@ elif method == 'gpr.gpflow':
         r_gpr.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
         gpflow.set_trainable(r_gpr.likelihood.variance, False)
 
-        opt.minimize(r_gpr.training_loss, variables=r_gpr.trainable_variables, options=gpflow_options)
+        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(r_gpr.training_loss()))] ))
+        opt.minimize(r_gpr.training_loss, variables=r_gpr.trainable_variables, options=gpflow_options, step_callback=monitor)
 
         msg = "Training Kernel - initial condition: " + str(generate_gpflow_kernel_code(r_gpr.kernel))
         print(msg)
@@ -278,7 +280,8 @@ elif method == 'gpr.gpflow':
         gpflow.set_trainable(model.likelihood.variance, False)
 
         # Optimize the full model
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=lambda step, var, val: loss.append(val))
+        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
+        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=monitor)
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
