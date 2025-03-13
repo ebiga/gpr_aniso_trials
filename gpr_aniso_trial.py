@@ -4,6 +4,7 @@ import pandas as pd
 import sklearn
 import silence_tensorflow.auto
 import gpflow
+import pickle
 import time
 import torch
 import gpytorch
@@ -238,6 +239,7 @@ if method == 'gpr.scikit':
 
 elif method == 'gpr.gpflow':
     loss = []
+    trained_model_file = 'model_training_' + method + '.pkl'
 
     # Define the kernel parameters
     kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=np.full(Ndimensions, 1.0))
@@ -281,10 +283,13 @@ elif method == 'gpr.gpflow':
         print(msg)
         flightlog.write(msg+'\n')
 
+        # store the model for reuse
+        with open(trained_model_file, "wb") as f:
+            pickle.dump(model, f)
+
     else:
-        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
-        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(model.likelihood.variance, False)
+        with open(trained_model_file, "rb") as f:
+            model = pickle.load(f)
 
     # store the posterior for faster prediction
     posterior_gpr = model.posterior()
@@ -297,7 +302,7 @@ elif method == 'gpr.gpflow':
 
 elif method == 'gpr.gpytorch':
     loss = []
-    trained_model_file = 'model_training_' + '.pth'
+    trained_model_file = 'model_training_' + method + '.pth'
 
     # Convert data to torch tensors
     train_x = torch.tensor(datas.to_numpy())
@@ -338,6 +343,7 @@ elif method == 'gpr.gpytorch':
 
         # store the model for reuse
         torch.save((model, likelihood), trained_model_file)
+
     else:
         # We simply insert the input data into the kernel
         model, likelihood = torch.load(trained_model_file, weights_only=False)
@@ -354,7 +360,7 @@ elif method == 'gpr.gpytorch':
 
 elif method == 'nn.tf':
     loss = []
-    trained_model_file = 'model_training_' + '.keras'
+    trained_model_file = 'model_training_' + method + '.keras'
 
     # Setup the neural network
     if if_train_optim:
@@ -389,7 +395,7 @@ elif method == 'nn.tf':
 
 elif method == 'at.tf':
     loss = []
-    trained_model_file = 'model_training_att' + '.keras'
+    trained_model_file = 'model_training_' + method + '.keras'
 
     # Setup the neural network
     if if_train_optim:
