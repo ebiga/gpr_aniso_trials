@@ -1,3 +1,4 @@
+import hjson
 import numpy as np
 import pandas as pd
 import sklearn
@@ -27,24 +28,6 @@ tf.random.set_seed(42)
 keras.utils.set_random_seed(42)
 torch.manual_seed(42)
 
-
-# Optimisation options
-gpflow_options = {
-    "maxiter": 1500,
-    "gtol": 1e-9,
-    "ftol": 1e-9,
-}
-
-keras_options = {
-    "learning_rate": 0.002,
-    "epochs": 1250,
-    "batch_size": 32,
-    "hidden_layers": 1024,
-}
-
-gpytorch_options = {
-    "maxiter": 1500,
-}
 
 
 # Function to write out gpflow kernel params for the future
@@ -166,28 +149,16 @@ start_time = time.time()
 
 
 ### USER OPTIONS
+with open('./casesetup.hjson', 'r') as casesetupfile:
+    casesetup = hjson.load(casesetupfile)
 
-# there are three sizes to pick from:
-#  full, mid, small
-select_input_size = 'small'
-
-# fitting methods available:
-#  'gpr.scikit': GPR by scikit-learn
-#  'gpr.gpflow': GPR by GPFlow
-#  'gpr.gpytorch' (not available)
-#  'nn.tf': Neural network by tensorflow/keras
-#  'at.tf': Neural network by tensorflow/keras with an attention layer
-method = 'at.tf'
-
-# let the hyperparameters by optmised? otherwise, you must provide them
-if_train_optim = True
-
-# if available, allow for anisotropy in the GPR
-if_train_aniso = True
-
-# ratio of number of points for a reduced-set initial condition
-r_numberofpoints = 0.5
-
+select_input_size = casesetup['select_input_size']
+method = casesetup['method']
+if_train_optim = casesetup['if_train_optim']
+r_numberofpoints = casesetup['gpflow_setup']['r_numberofpoints']
+gpflow_options = casesetup['gpflow_setup']['optimiser']
+keras_options = casesetup['keras_setup']
+gpytorch_options = casesetup['gpytorch_setup']
 
 
 

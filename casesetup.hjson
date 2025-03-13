@@ -1,0 +1,42 @@
+
+# there are three sizes to pick from:
+#  full, mid, small
+select_input_size: 'small'
+
+# fitting methods available:
+#  'gpr.scikit': GPR by scikit-learn
+#  'gpr.gpflow': GPR by GPFlow
+#  'gpr.gpytorch' (not available)
+#  'nn.tf': Neural network by tensorflow/keras
+#  'at.tf': Neural network by tensorflow/keras with an attention layer
+method: 'gpr.gpytorch'
+
+# let the hyperparameters by optmised? otherwise, you must provide them
+if_train_optim: true
+
+# GPR GPFlow options
+gpflow_setup:
+{
+    r_numberofpoints: 0.5 # ratio of number of points for a reduced-set initial condition
+    optimiser:
+    {
+        maxiter: 1500,
+        gtol: 1e-9,
+        ftol: 1e-9,
+    }
+}
+
+# Neural network options
+keras_setup:
+{
+    "learning_rate": 0.002,
+    "epochs": 125,
+    "batch_size": 32,
+    "hidden_layers": 1024,
+}
+
+# GPR GPYtorch options
+gpytorch_setup:
+{
+    "maxiter": 50,
+}
