@@ -241,12 +241,13 @@ elif method == 'gpr.gpflow':
     loss = []
     trained_model_file = 'model_training_' + method + '.pkl'
 
-    # Define the kernel parameters
-    kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=np.full(Ndimensions, 1.0))
-
-    opt = gpflow.optimizers.Scipy()
-
     if if_train_optim:
+        # Define the kernel parameters
+        kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=np.full(Ndimensions, 1.0))
+
+        # Define the optimizer
+        opt = gpflow.optimizers.Scipy()
+
         # Step 1: Make an initial guess with a reduced number of points
         r_datas, r_dataf = reduce_point_cloud(datas.to_numpy(), dataf.to_numpy().reshape(-1,1), target_fraction=r_numberofpoints)
         r_gpr = gpflow.models.GPR(data=(r_datas, r_dataf), kernel=kernel, noise_variance=None)
@@ -288,6 +289,7 @@ elif method == 'gpr.gpflow':
             pickle.dump(model, f)
 
     else:
+        # We simply insert the input data into the kernel
         with open(trained_model_file, "rb") as f:
             model = pickle.load(f)
 
@@ -304,11 +306,10 @@ elif method == 'gpr.gpytorch':
     loss = []
     trained_model_file = 'model_training_' + method + '.pth'
 
-    # Convert data to torch tensors
-    train_x = torch.tensor(datas.to_numpy())
-    train_y = torch.tensor(dataf.to_numpy())
-
     if if_train_optim:
+        # Convert data to torch tensors
+        train_x = torch.tensor(datas.to_numpy())
+        train_y = torch.tensor(dataf.to_numpy())
 
         # Define the model
         likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
@@ -362,8 +363,8 @@ elif method == 'nn.tf':
     loss = []
     trained_model_file = 'model_training_' + method + '.keras'
 
-    # Setup the neural network
     if if_train_optim:
+        # Setup the neural network
         model = keras.Sequential([
             layers.Input(shape=(Ndimensions,)),
             layers.Dense(Ndimensions),
@@ -397,8 +398,8 @@ elif method == 'at.tf':
     loss = []
     trained_model_file = 'model_training_' + method + '.keras'
 
-    # Setup the neural network
     if if_train_optim:
+        # Setup the neural network
         inputs = layers.Input(shape=(Ndimensions,))
 
         # Expand to (batch_size, Ndimensions)
