@@ -225,7 +225,7 @@ if method == 'gpr.scikit':
         model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
 
         # Train model
-        model.fit(datas, dataf)
+        model.fit(datas.to_numpy(), dataf.to_numpy())
  
         # store the model for reuse
         with open(trained_model_file, "wb") as f:
