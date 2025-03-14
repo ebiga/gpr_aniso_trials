@@ -117,8 +117,8 @@ def my_predicts(model, X):
     elif "gpflow" in module:
         return model.predict_f(X)[0].numpy().reshape(-1)
     
-    elif "tensorflow" in module or "keras" in module:  # TensorFlow/Keras
-        return model.predict(X).reshape(-1)
+    elif "tensorflow" in module or "keras" in module:
+        return model.predict(np.expand_dims(X, axis=1)).reshape(-1)
     
     else:
         if isinstance(model, gpytorch.models.GP):
@@ -369,7 +369,7 @@ elif method == 'nn.tf':
     if if_train_optim:
         # Setup the neural network
         model = keras.Sequential([
-            layers.Input(shape=(Ndimensions,)),
+            layers.Input(shape=(1, Ndimensions, )),
             layers.Dense(Ndimensions),
                 layers.Dense(keras_options["hidden_layers"], activation='elu', kernel_initializer='he_normal'),
             layers.Dense(1)
@@ -378,7 +378,7 @@ elif method == 'nn.tf':
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
         history = model.fit(
-            datas.to_numpy(),
+            np.expand_dims(datas.to_numpy(), axis=1),
             dataf.to_numpy(),
             verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
             )
@@ -403,16 +403,10 @@ elif method == 'at.tf':
 
     if if_train_optim:
         # Setup the neural network
-        inputs = layers.Input(shape=(Ndimensions,))
-
-        # Expand to (batch_size, Ndimensions)
-        re_inputs = layers.Lambda(lambda x: tf.expand_dims(x, axis=1))(inputs)
+        inputs = layers.Input(shape=(1, Ndimensions, ))
 
         # Apply Multi-Head Attention
-        attention_output = layers.MultiHeadAttention(num_heads=1, key_dim=Ndimensions)(re_inputs, re_inputs)
-
-        # Squeeze back to (batch_size, Ndimensions)
-        attention_output = layers.Lambda(lambda x: tf.squeeze(x, axis=1), output_shape=(None, Ndimensions))(attention_output)
+        attention_output = layers.MultiHeadAttention(num_heads=1, key_dim=Ndimensions)(inputs, inputs)
 
         # Fully connected layers
         dense_output = layers.Dense(keras_options["hidden_layers"], activation="elu", kernel_initializer='he_normal')(attention_output)
@@ -424,7 +418,7 @@ elif method == 'at.tf':
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
         history = model.fit(
-            datas.to_numpy(),
+            np.expand_dims(datas.to_numpy(), axis=1),
             dataf.to_numpy(),
             verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
             )
