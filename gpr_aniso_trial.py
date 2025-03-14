@@ -24,6 +24,7 @@ from keras import layers
 from gpflow.monitor import Monitor, MonitorTaskGroup
 
 gpflow.config.set_default_float('float64')
+tf.keras.backend.set_floatx('float64')
 torch.set_default_dtype(torch.float64)
 
 tf.random.set_seed(42)
