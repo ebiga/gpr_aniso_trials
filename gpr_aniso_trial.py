@@ -160,6 +160,7 @@ r_numberofpoints = casesetup['gpflow_setup']['r_numberofpoints']
 gpflow_options = casesetup['gpflow_setup']['optimiser']
 keras_options = casesetup['keras_setup']
 gpytorch_options = casesetup['gpytorch_setup']
+n_restarts_optimizer = casesetup['scikit_setup']['n_restarts_optimizer']
 
 
 
@@ -214,19 +215,25 @@ for i, b in enumerate(brkpts):
 
 if method == 'gpr.scikit':
     loss = []
+    trained_model_file = 'model_training_' + method + '.pkl'
 
-    # Define the kernel parameters - will be overwritten in case of optimisation
-    kernel = 1.**2 * RBF(length_scale=np.full(Ndimensions, 1.0))
-
-    # Use a kernel info if provided, otherwise optimise
     if if_train_optim:
-        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=12)
-    else:
-        model = GaussianProcessRegressor(kernel=kernel, optimizer=None)
+        # Define the kernel parameters
+        kernel = 1.**2 * RBF(length_scale=np.full(Ndimensions, 1.0))
 
-    # Train model
-    model.fit(datas, dataf, optimizer=lambda obj_func, initial_theta, bounds: 
-        [loss.append(val[1]) or val for val in [obj_func(initial_theta)]][0])
+        # Setup the model
+        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
+
+        # Train model
+        model.fit(datas, dataf)
+ 
+        # store the model for reuse
+        with open(trained_model_file, "wb") as f:
+            pickle.dump(model, f)
+    else:
+        # We simply insert the input data into the kernel
+        with open(trained_model_file, "rb") as f:
+            model = pickle.load(f)
     
     # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())

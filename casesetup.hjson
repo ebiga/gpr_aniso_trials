@@ -14,6 +14,12 @@ method: 'gpr.gpytorch'
 # let the hyperparameters by optmised? otherwise, you must provide them
 if_train_optim: true
 
+# GPR scikit options
+scikit_setup:
+{
+    n_restarts_optimizer: 3
+}
+
 # GPR GPFlow options
 gpflow_setup:
 {
