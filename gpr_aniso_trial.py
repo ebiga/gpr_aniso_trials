@@ -20,7 +20,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from matplotlib.lines import Line2D
 from tensorflow import keras
-from keras import layers
+from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
 
 gpflow.config.set_default_float('float64')
@@ -141,6 +141,18 @@ class GPRegressionModel(gpytorch.models.ExactGP):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+# Class necessary to expand the input layer shape for the multiheadattention
+@saving.register_keras_serializable()
+class ExpandALayer(layers.Layer): 
+    def call(self, x):
+        return tf.expand_dims(x, axis=1)
+
+# Class necessary to squeeze back the output shape of the multiheadattention
+@saving.register_keras_serializable()
+class SqueezeALayer(layers.Layer):
+    def call(self, x):
+        return tf.squeeze(x, axis=1)
 
 
 
@@ -375,9 +387,11 @@ elif method == 'nn.tf':
     trained_model_file = 'model_training_' + method + '.keras'
 
     if if_train_optim:
+        input_shape = datas.to_numpy().shape[1:]
+
         # Setup the neural network
         model = keras.Sequential([
-            layers.Input(shape=(Ndimensions,)),
+            layers.Input(shape=input_shape),
             layers.Dense(Ndimensions),
                 layers.Dense(keras_options["hidden_layers"], activation='elu', kernel_initializer='he_normal'),
             layers.Dense(1)
@@ -410,17 +424,15 @@ elif method == 'at.tf':
     trained_model_file = 'model_training_' + method + '.keras'
 
     if if_train_optim:
+        input_shape = datas.to_numpy().shape[1:]
+    
         # Setup the neural network
-        inputs = layers.Input(shape=(Ndimensions,))
-
-        # Expand to (batch_size, Ndimensions)
-        re_inputs = layers.Lambda(lambda x: tf.expand_dims(x, axis=1))(inputs)
+        inputs = layers.Input(shape=input_shape)
 
         # Apply Multi-Head Attention
+        re_inputs = ExpandALayer()(inputs)
         attention_output = layers.MultiHeadAttention(num_heads=1, key_dim=Ndimensions)(re_inputs, re_inputs)
-
-        # Squeeze back to (batch_size, Ndimensions)
-        attention_output = layers.Lambda(lambda x: tf.squeeze(x, axis=1), output_shape=(None, Ndimensions))(attention_output)
+        attention_output = SqueezeALayer()(attention_output)
 
         # Fully connected layers
         dense_output = layers.Dense(keras_options["hidden_layers"], activation="elu", kernel_initializer='he_normal')(attention_output)
