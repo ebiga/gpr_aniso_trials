@@ -35,14 +35,19 @@ gpflow_setup:
 # Neural network options
 keras_setup:
 {
-    "learning_rate": 0.002,
-    "epochs": 125,
-    "batch_size": 32,
-    "hidden_layers": 1024,
+    learning_rate: 0.002,
+    epochs: 75,
+    batch_size: 32,
+    hidden_layers: 1024,
+
+    multiheadattention_setup:
+    {
+        num_heads: 2
+    }
 }
 
 # GPR GPYtorch options
 gpytorch_setup:
 {
-    "maxiter": 50,
+    maxiter: 750,
 }

@@ -431,7 +431,7 @@ elif method == 'at.tf':
 
         # Apply Multi-Head Attention
         re_inputs = ExpandALayer()(inputs)
-        attention_output = layers.MultiHeadAttention(num_heads=1, key_dim=Ndimensions)(re_inputs, re_inputs)
+        attention_output = layers.MultiHeadAttention(num_heads=keras_options["multiheadattention_setup"]["num_heads"], key_dim=Ndimensions)(re_inputs, re_inputs)
         attention_output = SqueezeALayer()(attention_output)
 
         # Fully connected layers
