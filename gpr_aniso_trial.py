@@ -1,3 +1,4 @@
+import os
 import hjson
 import numpy as np
 import pandas as pd
@@ -156,13 +157,13 @@ class SqueezeALayer(layers.Layer):
 
 
 
-flightlog = open('log.txt', 'w')
-start_time = time.time()
 
 
 
 
 ### USER OPTIONS
+start_time = time.time()
+
 with open('./casesetup.hjson', 'r') as casesetupfile:
     casesetup = hjson.load(casesetupfile)
 
@@ -174,6 +175,13 @@ gpflow_options = casesetup['gpflow_setup']['optimiser']
 keras_options = casesetup['keras_setup']
 gpytorch_options = casesetup['gpytorch_setup']
 n_restarts_optimizer = casesetup['scikit_setup']['n_restarts_optimizer']
+
+# file locations
+dafolder = method
+os.makedirs(dafolder, exist_ok=True)
+
+flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
+
 
 
 
@@ -228,7 +236,7 @@ for i, b in enumerate(brkpts):
 
 if method == 'gpr.scikit':
     loss = []
-    trained_model_file = 'model_training_' + method + '.pkl'
+    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
 
     if if_train_optim:
         # Define the kernel parameters
@@ -260,7 +268,7 @@ if method == 'gpr.scikit':
 
 elif method == 'gpr.gpflow':
     loss = []
-    trained_model_file = 'model_training_' + method + '.pkl'
+    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
 
     if if_train_optim:
         # Define the kernel parameters
@@ -327,7 +335,7 @@ elif method == 'gpr.gpflow':
 
 elif method == 'gpr.gpytorch':
     loss = []
-    trained_model_file = 'model_training_' + method + '.pth'
+    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pth')
 
     if if_train_optim:
         # Convert data to torch tensors
@@ -384,7 +392,7 @@ elif method == 'gpr.gpytorch':
 
 elif method == 'nn.tf':
     loss = []
-    trained_model_file = 'model_training_' + method + '.keras'
+    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
 
     if if_train_optim:
         input_shape = datas.to_numpy().shape[1:]
@@ -421,7 +429,7 @@ elif method == 'nn.tf':
 
 elif method == 'at.tf':
     loss = []
-    trained_model_file = 'model_training_' + method + '.keras'
+    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
 
     if if_train_optim:
         input_shape = datas.to_numpy().shape[1:]
@@ -472,7 +480,7 @@ plt.xlabel('Epochs')
 plt.ylabel('Log(Loss)')
 plt.title('Loss Convergence')
 plt.legend()
-plt.savefig('convergence_'+str(method)+'.png')
+plt.savefig(os.path.join(dafolder, 'convergence_'+str(method)+'.png'))
 plt.close()
 
 
@@ -516,7 +524,7 @@ for v in param3_range:
     ax.set_xlabel('param1')
     ax.set_ylabel('param2')
 
-    plt.savefig('the_contours_for_'+str(v)+'.png')
+    plt.savefig(os.path.join(dafolder, 'the_contours_for_'+str(v)+'.png'))
     plt.close()
 
 
@@ -566,11 +574,10 @@ for c in cases_param1_param2:
 
     plt.legend()
 
-    plt.savefig('the_plot_for_'+str(c_name)+'.png')
+    plt.savefig(os.path.join(dafolder, 'the_plot_for_'+str(c_name)+'.png'))
     plt.close()
 
 
 msg = f"Elapsed time: {time.time() - start_time:.2f} seconds"
 print(msg)
 flightlog.write(msg+'\n')
-
