@@ -483,16 +483,22 @@ plt.legend()
 plt.savefig(os.path.join(dafolder, 'convergence_'+str(method)+'.png'))
 plt.close()
 
+# reference points to plot, provided in the original "dimensional" space
+param1_param2_cases = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
+param3_cases = [0.7, 0.8]
+
+param1_param2_nondim_cases = []
+for c in param1_param2_cases:
+    param1_param2_nondim_cases.append([c[0], c[1]/NormDlt[0] - NormMin[0], c[2]/NormDlt[1] - NormMin[1]])
+
 
 # contours
-param3_range = [0.7, 0.8]
-
-for v in param3_range:
+for v in param3_cases:
     fig = plt.figure(figsize=(12, 10))
     fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
     ax = fig.add_subplot(111)
 
-    # filtering the slice
+    # filtering the slice from the original "dimensional" data
     filtered_indices = dataso[ np.round(dataso['param3'], decimals=6) == v].index
 
     # filter the trained mean - we need a pandas dataframe here
@@ -529,16 +535,15 @@ for v in param3_range:
 
 
 # X-Ys
-cases_param1_param2 = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
 param3_range = np.linspace( min(dataso['param3']), max(dataso['param3']), 100 )
 
-for c in cases_param1_param2:
+for c in param1_param2_cases:
     fig = plt.figure(figsize=(12, 10))
     ax = fig.add_subplot(111)
 
     c_name = c[0]
 
-    # get the closest of the function data
+    # get the closest points from the original "dimensional" data
     df = pd.DataFrame(dataso)
     df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df['param2'] - c[2])**2)
     closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
