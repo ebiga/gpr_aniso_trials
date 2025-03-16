@@ -487,10 +487,6 @@ plt.close()
 param1_param2_cases = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
 param3_cases = [0.7, 0.8]
 
-param1_param2_nondim_cases = []
-for c in param1_param2_cases:
-    param1_param2_nondim_cases.append([c[0], c[1]/NormDlt[0] - NormMin[0], c[2]/NormDlt[1] - NormMin[1]])
-
 
 # contours
 for v in param3_cases:
@@ -513,7 +509,7 @@ for v in param3_cases:
     Z2 = mean_pd.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
 
     # define the levels and plot
-    levels = np.arange(0.04,0.2,0.02)
+    levels = np.arange(0.04,0.24,0.02)
 
     COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid'  , linewidths=1)
     COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed' , linewidths=0.5)
@@ -529,6 +525,10 @@ for v in param3_cases:
 
     ax.set_xlabel('param1')
     ax.set_ylabel('param2')
+
+    for c in param1_param2_cases:
+        plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
+        plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
 
     plt.savefig(os.path.join(dafolder, 'the_contours_for_'+str(v)+'.png'))
     plt.close()
