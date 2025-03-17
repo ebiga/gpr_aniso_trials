@@ -11,7 +11,7 @@ select_input_size: 'small'
 #  'at.tf': Neural network by tensorflow/keras with an attention layer
 method: 'gpr.gpytorch'
 
-# let the hyperparameters by optmised? otherwise, you must provide them
+# let the hyperparameters by optmised? otherwise, read a pre-saved model
 if_train_optim: true
 
 # GPR scikit options
