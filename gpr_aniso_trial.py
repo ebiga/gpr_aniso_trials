@@ -95,7 +95,7 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
 
 
 # Compute the rms of the mean
-def check_mean(mean, refd):
+def check_mean(atest, mean, refd):
     delta = refd - mean
 
     Ntotal = np.shape(delta)[0]
@@ -104,7 +104,7 @@ def check_mean(mean, refd):
     mae_check = np.sum( np.abs(delta) )/Ntotal
     max_check = np.max( np.abs(delta) )
 
-    msg = "Training errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
+    msg = atest + " errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
     print(msg)
     return msg
 
@@ -187,7 +187,8 @@ flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
 
 ### DATA POINTS
 
-## training space
+# training data
+# in three different sizes
 if select_input_size == 'full':
     data_base = pd.read_csv('./input_f.csv')
 
@@ -209,25 +210,36 @@ elif select_input_size == 'small':
     NgridY = 33
     NgridZ = 5
 
-Ndimensions = 3 # first 3 columns have the breakpoints
+# test data
+# extracted from the full case so only really meaningfull for the smaller cases
+test_base = pd.read_csv('./test.csv')
 
-# separate breakpoints and output
+# Define dimensions, breakpoints and output headers
+Ndimensions = 3 # first 3 columns have the breakpoints
 brkpts = data_base.columns[:Ndimensions].to_numpy()
 output = data_base.columns[Ndimensions]
 
+# separate the data sets into breakpoints and outputs
 dataso = data_base[brkpts].astype(np.float64)
 dataf  = data_base[output].astype(np.float64)
 
-# make this nondimensional
+testso = test_base[brkpts].astype(np.float64)
+testf  = test_base[output].astype(np.float64)
+
+# make the breakpoints nondimensional, in the range [-0.5, 0.5]
 NormMin = np.full(Ndimensions, 0.)
 NormDlt = np.full(Ndimensions, 1.)
+
 datas = dataso.copy()
+tests = testso.copy()
+
 for i, b in enumerate(brkpts):
     NormMini   = np.min(dataso[b])
     NormDlt[i] = np.max(dataso[b]) - NormMini
     NormMin[i] = NormMini/NormDlt[i] + 0.5
 
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
+    tests[b] = testso[b]/NormDlt[i] - NormMin[i]
 
 
 
@@ -247,6 +259,10 @@ if method == 'gpr.scikit':
 
         # Train model
         model.fit(datas.to_numpy(), dataf.to_numpy())
+
+        msg = "Training Kernel: " + str(model.kernel_)
+        print(msg)
+        flightlog.write(msg+'\n')
  
         # store the model for reuse
         with open(trained_model_file, "wb") as f:
@@ -258,11 +274,8 @@ if method == 'gpr.scikit':
     
     # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
-
-    msg = "Training Kernel: " + str(model.kernel_)
-    print(msg)
-    flightlog.write(msg+'\n')
+    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", my_predicts(model, tests.to_numpy()), testf.to_numpy()))
 
 
 
@@ -329,7 +342,8 @@ elif method == 'gpr.gpflow':
 
     # Predict and evaluate
     mean = my_predicts(posterior_gpr, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", my_predicts(posterior_gpr, tests.to_numpy()), testf.to_numpy()))
 
 
 
@@ -386,7 +400,8 @@ elif method == 'gpr.gpytorch':
 
     # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", my_predicts(model, tests.to_numpy()), testf.to_numpy()))
 
 
 
@@ -423,7 +438,8 @@ elif method == 'nn.tf':
 
     # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", my_predicts(model, tests.to_numpy()), testf.to_numpy()))
 
 
 
@@ -467,7 +483,8 @@ elif method == 'at.tf':
 
     # Predict and evaluate
     mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", my_predicts(model, tests.to_numpy()), testf.to_numpy()))
 
 
 
