@@ -492,18 +492,19 @@ elif method == 'at.tf':
 ### PLOTTING
 
 # training convergence
-plt.plot(np.array(loss), label='Training Loss')
-plt.xlabel('Epochs')
-plt.ylabel('Log(Loss)')
-plt.title('Loss Convergence')
-plt.legend()
-plt.savefig(os.path.join(dafolder, 'convergence_'+str(method)+'.png'))
-plt.close()
+if if_train_optim:
+    plt.plot(np.array(loss), label='Training Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Log(Loss)')
+    plt.title('Loss Convergence')
+    plt.legend()
+    plt.savefig(os.path.join(dafolder, 'convergence_'+str(method)+'.png'))
+    plt.close()
+
 
 # reference points to plot, provided in the original "dimensional" space
 param1_param2_cases = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
 param3_cases = [0.7, 0.8]
-
 
 # contours
 for v in param3_cases:
