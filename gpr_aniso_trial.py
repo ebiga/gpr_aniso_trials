@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import gpflow.utilities as gputil
 import tensorflow as tf
 import tensorflow_probability as tfp
+import seaborn as sns
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
@@ -604,6 +605,62 @@ for c in param1_param2_cases:
 
     plt.savefig(os.path.join(dafolder, 'the_plot_for_'+str(c_name)+'.png'))
     plt.close()
+
+
+# 1:1 expected vs. fitted
+num_points = len(testf)
+
+# Define symbols and sizes
+markers = ['*', '^', 's', 'D']
+sizes   = [30, 60, 90, 120]
+colors  = sns.color_palette("husl", 5)
+
+# Assign quartiles
+param1_q = np.digitize(testso['param1'], np.percentile(testso['param1'], [25, 50, 75]), right=True)
+param2_q = np.digitize(testso['param2'], np.percentile(testso['param2'], [25, 50, 75]), right=True)
+
+param3_max = max(testso['param3'])
+param3_min = min(testso['param3'])
+param3_dlt = param3_max - param3_min
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 8))
+for i in range(num_points):
+
+    color_index = int(4 * (testso.at[i, 'param3'] - param3_min)/param3_dlt)
+
+    ax.scatter(
+        testf[i], meant[i],
+        color=colors[color_index],
+        marker=markers[param2_q[i]],
+        s=sizes[param1_q[i]],
+        alpha=0.75
+    )
+
+# 1:1 line
+ax.plot([0, 1], [0, 1], 'k--')
+
+# Legend for markers
+legend_markers = [plt.Line2D([0], [0], marker=m, color='w', markerfacecolor='black', markersize=10) for m in markers]
+marker_legend = ax.legend(legend_markers, [f'Q{i+1} of Param2' for i in range(4)], title="Marker: Param2", loc="upper right")
+
+# Legend for sizes
+legend_sizes = [plt.scatter([], [], s=s, color='black') for s in sizes]
+size_legend = ax.legend(legend_sizes, [f'Q{i+1} of Param1' for i in range(4)], title="Size: Param1", loc="upper left")
+
+# Legend for colors
+legend_colors = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=10) for c in colors]
+color_legend = ax.legend(legend_colors, [f'Param3 = {i}' for i in range(5)], title="Color: Param3", loc="lower right")
+
+ax.add_artist(marker_legend)
+ax.add_artist(size_legend)
+
+ax.set_xlabel("Expected")
+ax.set_ylabel("Fitted")
+ax.set_title("Testing Space 1:1")
+
+plt.savefig(os.path.join(dafolder, 'one-to-one_for_'+str(c_name)+'.png'))
+plt.close()
 
 
 msg = f"Elapsed time: {time.time() - start_time:.2f} seconds"
