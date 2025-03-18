@@ -518,26 +518,40 @@ for v in param3_cases:
     fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
     ax = fig.add_subplot(111)
 
-    # filtering the slice from the original "dimensional" data
+    # prepare the arrays
+    ngrid = 51
+
+    Xo = pd.DataFrame( {col: [pd.NA] * ngrid*ngrid for col in dataso.columns} )
+
+    X = np.linspace( min(dataso['param1']), max(dataso['param1']), ngrid )
+    Y = np.linspace( min(dataso['param2']), max(dataso['param2']), ngrid )
+
+    XX, YY = np.meshgrid(X, Y)
+
+    Xo['param1'] = XX.ravel()
+    Xo['param2'] = YY.ravel()
+    Xo['param3'] = v
+
+    X = Xo.copy()
+    for i, b in enumerate(brkpts):
+        X[b] = Xo[b]/NormDlt[i] - NormMin[i]
+
+    Z2 = my_predicts(model, X.to_numpy()).reshape(ngrid, ngrid)
+
+    COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed', linewidths=0.5)
+
+    # fetch the reference data
     filtered_indices = dataso[ np.round(dataso['param3'], decimals=6) == v].index
 
-    # filter the trained mean - we need a pandas dataframe here
-    mean_pd = dataf.copy()
-    mean_pd.loc[:] = meanf
-
-    # prepare the arrays
     X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
     Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
 
     Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
-    Z2 = mean_pd.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
+
+    COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid', linewidths=1)
 
     # define the levels and plot
     levels = np.arange(0.04,0.24,0.02)
-
-    COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid'  , linewidths=1)
-    COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed' , linewidths=0.5)
-
     plt.clabel(COU, fontsize=9)
 
     lines = [
