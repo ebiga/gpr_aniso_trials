@@ -273,9 +273,10 @@ if method == 'gpr.scikit':
             model = pickle.load(f)
     
     # Predict and evaluate
-    mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", my_predicts(model, tests.to_numpy()), testf.to_numpy()))
+    meanf = my_predicts(model, datas.to_numpy())
+    meant = my_predicts(model, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -341,9 +342,10 @@ elif method == 'gpr.gpflow':
     posterior_gpr = model.posterior()
 
     # Predict and evaluate
-    mean = my_predicts(posterior_gpr, datas.to_numpy())
-    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", my_predicts(posterior_gpr, tests.to_numpy()), testf.to_numpy()))
+    meanf = my_predicts(posterior_gpr, datas.to_numpy())
+    meant = my_predicts(posterior_gpr, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -399,9 +401,10 @@ elif method == 'gpr.gpytorch':
     likelihood.eval()
 
     # Predict and evaluate
-    mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", my_predicts(model, tests.to_numpy()), testf.to_numpy()))
+    meanf = my_predicts(model, datas.to_numpy())
+    meant = my_predicts(model, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -437,9 +440,10 @@ elif method == 'nn.tf':
         model = tf.keras.models.load_model(trained_model_file)
 
     # Predict and evaluate
-    mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", my_predicts(model, tests.to_numpy()), testf.to_numpy()))
+    meanf = my_predicts(model, datas.to_numpy())
+    meant = my_predicts(model, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -482,9 +486,10 @@ elif method == 'at.tf':
         model = tf.keras.models.load_model(trained_model_file)
 
     # Predict and evaluate
-    mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean("Training", mean, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", my_predicts(model, tests.to_numpy()), testf.to_numpy()))
+    meanf = my_predicts(model, datas.to_numpy())
+    meant = my_predicts(model, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -517,7 +522,7 @@ for v in param3_cases:
 
     # filter the trained mean - we need a pandas dataframe here
     mean_pd = dataf.copy()
-    mean_pd.loc[:] = mean
+    mean_pd.loc[:] = meanf
 
     # prepare the arrays
     X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
