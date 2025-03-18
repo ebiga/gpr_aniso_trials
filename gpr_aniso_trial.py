@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import gpflow.utilities as gputil
 import tensorflow as tf
 import tensorflow_probability as tfp
+import seaborn as sns
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
@@ -95,7 +96,7 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
 
 
 # Compute the rms of the mean
-def check_mean(mean, refd):
+def check_mean(atest, mean, refd):
     delta = refd - mean
 
     Ntotal = np.shape(delta)[0]
@@ -104,7 +105,7 @@ def check_mean(mean, refd):
     mae_check = np.sum( np.abs(delta) )/Ntotal
     max_check = np.max( np.abs(delta) )
 
-    msg = "Training errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
+    msg = atest + " errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
     print(msg)
     return msg
 
@@ -187,7 +188,8 @@ flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
 
 ### DATA POINTS
 
-## training space
+# training data
+# in three different sizes
 if select_input_size == 'full':
     data_base = pd.read_csv('./input_f.csv')
 
@@ -209,25 +211,36 @@ elif select_input_size == 'small':
     NgridY = 33
     NgridZ = 5
 
-Ndimensions = 3 # first 3 columns have the breakpoints
+# test data
+# extracted from the full case so only really meaningfull for the smaller cases
+test_base = pd.read_csv('./test.csv')
 
-# separate breakpoints and output
+# Define dimensions, breakpoints and output headers
+Ndimensions = 3 # first 3 columns have the breakpoints
 brkpts = data_base.columns[:Ndimensions].to_numpy()
 output = data_base.columns[Ndimensions]
 
+# separate the data sets into breakpoints and outputs
 dataso = data_base[brkpts].astype(np.float64)
 dataf  = data_base[output].astype(np.float64)
 
-# make this nondimensional
+testso = test_base[brkpts].astype(np.float64)
+testf  = test_base[output].astype(np.float64)
+
+# make the breakpoints nondimensional, in the range [-0.5, 0.5]
 NormMin = np.full(Ndimensions, 0.)
 NormDlt = np.full(Ndimensions, 1.)
+
 datas = dataso.copy()
+tests = testso.copy()
+
 for i, b in enumerate(brkpts):
     NormMini   = np.min(dataso[b])
     NormDlt[i] = np.max(dataso[b]) - NormMini
     NormMin[i] = NormMini/NormDlt[i] + 0.5
 
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
+    tests[b] = testso[b]/NormDlt[i] - NormMin[i]
 
 
 
@@ -247,6 +260,10 @@ if method == 'gpr.scikit':
 
         # Train model
         model.fit(datas.to_numpy(), dataf.to_numpy())
+
+        msg = "Training Kernel: " + str(model.kernel_)
+        print(msg)
+        flightlog.write(msg+'\n')
  
         # store the model for reuse
         with open(trained_model_file, "wb") as f:
@@ -257,12 +274,10 @@ if method == 'gpr.scikit':
             model = pickle.load(f)
     
     # Predict and evaluate
-    mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
-
-    msg = "Training Kernel: " + str(model.kernel_)
-    print(msg)
-    flightlog.write(msg+'\n')
+    meanf = my_predicts(model, datas.to_numpy())
+    meant = my_predicts(model, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -328,8 +343,10 @@ elif method == 'gpr.gpflow':
     posterior_gpr = model.posterior()
 
     # Predict and evaluate
-    mean = my_predicts(posterior_gpr, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
+    meanf = my_predicts(posterior_gpr, datas.to_numpy())
+    meant = my_predicts(posterior_gpr, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -385,8 +402,10 @@ elif method == 'gpr.gpytorch':
     likelihood.eval()
 
     # Predict and evaluate
-    mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
+    meanf = my_predicts(model, datas.to_numpy())
+    meant = my_predicts(model, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -422,8 +441,10 @@ elif method == 'nn.tf':
         model = tf.keras.models.load_model(trained_model_file)
 
     # Predict and evaluate
-    mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
+    meanf = my_predicts(model, datas.to_numpy())
+    meant = my_predicts(model, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -466,8 +487,10 @@ elif method == 'at.tf':
         model = tf.keras.models.load_model(trained_model_file)
 
     # Predict and evaluate
-    mean = my_predicts(model, datas.to_numpy())
-    flightlog.write(check_mean(mean, dataf.to_numpy()))
+    meanf = my_predicts(model, datas.to_numpy())
+    meant = my_predicts(model, tests.to_numpy())
+    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
 
 
 
@@ -475,18 +498,19 @@ elif method == 'at.tf':
 ### PLOTTING
 
 # training convergence
-plt.plot(np.array(loss), label='Training Loss')
-plt.xlabel('Epochs')
-plt.ylabel('Log(Loss)')
-plt.title('Loss Convergence')
-plt.legend()
-plt.savefig(os.path.join(dafolder, 'convergence_'+str(method)+'.png'))
-plt.close()
+if if_train_optim:
+    plt.plot(np.array(loss), label='Training Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Log(Loss)')
+    plt.title('Loss Convergence')
+    plt.legend()
+    plt.savefig(os.path.join(dafolder, 'convergence_'+str(method)+'.png'))
+    plt.close()
+
 
 # reference points to plot, provided in the original "dimensional" space
 param1_param2_cases = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
 param3_cases = [0.7, 0.8]
-
 
 # contours
 for v in param3_cases:
@@ -499,7 +523,7 @@ for v in param3_cases:
 
     # filter the trained mean - we need a pandas dataframe here
     mean_pd = dataf.copy()
-    mean_pd.loc[:] = mean
+    mean_pd.loc[:] = meanf
 
     # prepare the arrays
     X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
@@ -581,6 +605,62 @@ for c in param1_param2_cases:
 
     plt.savefig(os.path.join(dafolder, 'the_plot_for_'+str(c_name)+'.png'))
     plt.close()
+
+
+# 1:1 expected vs. fitted
+num_points = len(testf)
+
+# Define symbols and sizes
+markers = ['*', '^', 's', 'D']
+sizes   = [30, 60, 90, 120]
+colors  = sns.color_palette("husl", 5)
+
+# Assign quartiles
+param1_q = np.digitize(testso['param1'], np.percentile(testso['param1'], [25, 50, 75]), right=True)
+param2_q = np.digitize(testso['param2'], np.percentile(testso['param2'], [25, 50, 75]), right=True)
+
+param3_max = max(testso['param3'])
+param3_min = min(testso['param3'])
+param3_dlt = param3_max - param3_min
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 8))
+for i in range(num_points):
+
+    color_index = int(4 * (testso.at[i, 'param3'] - param3_min)/param3_dlt)
+
+    ax.scatter(
+        testf[i], meant[i],
+        color=colors[color_index],
+        marker=markers[param2_q[i]],
+        s=sizes[param1_q[i]],
+        alpha=0.75
+    )
+
+# 1:1 line
+ax.plot([0, 1], [0, 1], 'k--')
+
+# Legend for markers
+legend_markers = [plt.Line2D([0], [0], marker=m, color='w', markerfacecolor='black', markersize=10) for m in markers]
+marker_legend = ax.legend(legend_markers, [f'Q{i+1} of Param2' for i in range(4)], title="Marker: Param2", loc="upper right")
+
+# Legend for sizes
+legend_sizes = [plt.scatter([], [], s=s, color='black') for s in sizes]
+size_legend = ax.legend(legend_sizes, [f'Q{i+1} of Param1' for i in range(4)], title="Size: Param1", loc="upper left")
+
+# Legend for colors
+legend_colors = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=10) for c in colors]
+color_legend = ax.legend(legend_colors, [f'Param3 = {i}' for i in range(5)], title="Color: Param3", loc="lower right")
+
+ax.add_artist(marker_legend)
+ax.add_artist(size_legend)
+
+ax.set_xlabel("Expected")
+ax.set_ylabel("Fitted")
+ax.set_title("Testing Space 1:1")
+
+plt.savefig(os.path.join(dafolder, 'one-to-one_for_'+str(c_name)+'.png'))
+plt.close()
 
 
 msg = f"Elapsed time: {time.time() - start_time:.2f} seconds"
