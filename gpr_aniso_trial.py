@@ -211,6 +211,13 @@ elif select_input_size == 'small':
     NgridY = 33
     NgridZ = 5
 
+elif select_input_size == 'tiny':
+    data_base = pd.read_csv('./input_t.csv')
+
+    NgridX = 18
+    NgridY = 16
+    NgridZ = 5
+
 # test data
 # extracted from the full case so only really meaningfull for the smaller cases
 test_base = pd.read_csv('./test.csv')

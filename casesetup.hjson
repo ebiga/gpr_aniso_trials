@@ -1,6 +1,6 @@
 
 # there are three sizes to pick from:
-#  full, mid, small
+#  full, mid, small, tiny
 select_input_size: 'small'
 
 # fitting methods available:
