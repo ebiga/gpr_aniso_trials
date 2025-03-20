@@ -516,11 +516,11 @@ if if_train_optim:
 
 
 # reference points to plot, provided in the original "dimensional" space
-param1_param2_cases = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
+param1_param2_cases = [['c1', 13.25, 1.39, 0.7], ['c2', 27.8, 7.4, 0.8]]
 param3_cases = [0.7, 0.8]
 
 # contours
-for v in param3_cases:
+for k, v in enumerate(param3_cases):
     fig = plt.figure(figsize=(12, 10))
     fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
     ax = fig.add_subplot(111)
@@ -573,9 +573,9 @@ for v in param3_cases:
     ax.set_xlabel('param1')
     ax.set_ylabel('param2')
 
-    for c in param1_param2_cases:
-        plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
-        plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
+    c = param1_param2_cases[k]
+    plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
+    plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
 
     plt.savefig(os.path.join(dafolder, 'the_contours_for_'+str(v)+'.png'))
     plt.close()
