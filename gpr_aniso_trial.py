@@ -552,11 +552,11 @@ if if_train_optim:
 
 
 # reference points to plot, provided in the original "dimensional" space
-param1_param2_cases = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
+param1_param2_cases = [['c1', 13.25, 1.39, 0.7], ['c2', 27.8, 7.4, 0.8]]
 param3_cases = [0.7, 0.8]
 
 # contours
-for v in param3_cases:
+for k, v in enumerate(param3_cases):
     fig = plt.figure(figsize=(12, 10))
     fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
     ax = fig.add_subplot(111)
@@ -609,61 +609,72 @@ for v in param3_cases:
     ax.set_xlabel('param1')
     ax.set_ylabel('param2')
 
-    for c in param1_param2_cases:
-        plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
-        plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
+    c = param1_param2_cases[k]
+    plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
+    plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
 
     plt.savefig(os.path.join(dafolder, 'the_contours_for_'+str(v)+'.png'))
     plt.close()
 
 
 # X-Ys
-param3_range = np.linspace( min(dataso['param3']), max(dataso['param3']), 100 )
+params_to_range = ['param3', 'param2']
 
 for c in param1_param2_cases:
-    fig = plt.figure(figsize=(12, 10))
-    ax = fig.add_subplot(111)
 
     c_name = c[0]
 
-    # get the closest points from the original "dimensional" data
-    df = pd.DataFrame(dataso)
-    df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df['param2'] - c[2])**2)
-    closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
+    for pranged in params_to_range:
+        fig = plt.figure(figsize=(12, 10))
+        ax = fig.add_subplot(111)
 
-    # get the scattered points closest to the references
-    XR = dataso.loc[closest_points_index]['param3']
-    FR = dataf[closest_points_index]
+        if pranged == 'param3':
+            psearch = 'param2'
+            cx = c[2]
+        elif pranged == 'param2':
+            psearch = 'param3'
+            cx = c[3]
 
-    # Fit the data to generate the plot
-    c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
-    c_param2 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param2'] ).item()
+        # get the closest points from the original "dimensional" data
+        df = pd.DataFrame(dataso)
+        df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df[psearch] - cx)**2)
+        closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
 
-    fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; param2 "+str(round(c_param2,3)), fontsize=14)
+        param_range = np.linspace( min(dataso[pranged]), max(dataso[pranged]), 100 )
 
-    # create the X dimension to be fitted
-    Xo = pd.DataFrame( {col: [pd.NA] * len(param3_range) for col in datas.columns} )
-    Xo['param1'] = c_param1
-    Xo['param2'] = c_param2
-    Xo['param3'] = param3_range
+        # get the scattered points closest to the references
+        XR = dataso.loc[closest_points_index][pranged]
+        FR = dataf[closest_points_index]
 
-    X = Xo.copy()
-    for i, b in enumerate(brkpts):
-        X[b] = Xo[b]/NormDlt[i] - NormMin[i]
+        # Fit the data to generate the plot
+        c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
+        c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][psearch] ).item()
 
-    Y1 = my_predicts(model, X.to_numpy())
+        fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; " + psearch + " "+str(round(c_paramx,3)), fontsize=14)
 
-    # plot
-    plt.plot(param3_range, Y1.T, lw=0.5, label='fitted')
-    plt.scatter(XR, FR.T, lw=0.5, marker='o', label='ref')
+        # create the X dimension to be fitted
+        Xo = pd.DataFrame( {col: [pd.NA] * len(param_range) for col in datas.columns} )
+        Xo['param1'] = c_param1
+        Xo[psearch] = c_paramx
+        Xo[pranged] = param_range
 
-    ax.set_xlabel('param3')
-    ax.set_ylabel('var1')
+        X = Xo.copy()
+        for i, b in enumerate(brkpts):
+            X[b] = Xo[b]/NormDlt[i] - NormMin[i]
 
-    plt.legend()
+        Y1 = my_predicts(model, X.to_numpy())
 
-    plt.savefig(os.path.join(dafolder, 'the_plot_for_'+str(c_name)+'.png'))
-    plt.close()
+        # plot
+        plt.plot(param_range, Y1.T, lw=0.5, label='fitted')
+        plt.scatter(XR, FR.T, lw=0.5, marker='o', label='ref')
+
+        ax.set_xlabel(pranged)
+        ax.set_ylabel('var1')
+
+        plt.legend()
+
+        plt.savefig(os.path.join(dafolder, 'the_plot_for_'+str(c_name)+'_vs_'+pranged+'.png'))
+        plt.close()
 
 
 # 1:1 expected vs. fitted
