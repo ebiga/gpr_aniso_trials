@@ -294,7 +294,23 @@ elif method == 'gpr.gpflow':
 
     if if_train_optim:
         # Define the kernel parameters
-        kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=np.full(Ndimensions, 1.0))
+        kernel1 = gpflow.kernels.Matern32(variance=1.**2, lengthscales=np.full(Ndimensions, 1.))
+        kernel2 = gpflow.kernels.Matern32(variance=1.**2, lengthscales=np.full(Ndimensions, 4.))
+
+        kernel1.variance.prior = tfp.distributions.LogNormal(
+            tf.math.log(gpflow.utilities.to_default_float(1.)), 0.5
+        )
+        kernel1.lengthscales.prior = tfp.distributions.LogNormal(
+            tf.math.log(gpflow.utilities.to_default_float(2.)), 0.5
+        )
+        kernel2.variance.prior = tfp.distributions.LogNormal(
+            tf.math.log(gpflow.utilities.to_default_float(1.)), 0.5
+        )
+        kernel2.lengthscales.prior = tfp.distributions.LogNormal(
+            tf.math.log(gpflow.utilities.to_default_float(2.)), 0.5
+        )
+
+        kernel = kernel1 + kernel2
 
         # Define the optimizer
         opt = gpflow.optimizers.Scipy()
@@ -313,16 +329,36 @@ elif method == 'gpr.gpflow':
         flightlog.write(msg+'\n')
 
         # Step 2: Use the optimized parameters as priors for the full model
-        optimized_variance = r_gpr.kernel.variance.numpy()
-        optimized_lengthscales = r_gpr.kernel.lengthscales.numpy()
-
+        varvar = 0.5
         # Set priors
-        kernel.variance.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), 1.0
-        )
-        kernel.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), 1.0
-        )
+        if not isinstance(r_gpr.kernel, gpflow.kernels.Sum):
+            # Single Kernel
+            optimized_variance = r_gpr.kernel.variance.numpy()
+            r_gpr.kernel.variance.prior = tfp.distributions.LogNormal(
+                tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), varvar
+            )
+            optimized_lengthscales = r_gpr.kernel.lengthscales.numpy()
+            r_gpr.kernel.lengthscales.prior = tfp.distributions.LogNormal(
+                tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), varvar
+            )
+
+            kernel = r_gpr.kernel
+        else:
+            # Multiple Kernels
+            for k, akernel in enumerate(r_gpr.kernel.kernels):
+                optimized_variance = akernel.variance.numpy()
+                akernel.variance.prior = tfp.distributions.LogNormal(
+                    tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), varvar
+                )
+                optimized_lengthscales = akernel.lengthscales.numpy()
+                akernel.lengthscales.prior = tfp.distributions.LogNormal(
+                    tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), varvar
+                )
+
+                if k == 0:
+                    kernel = akernel
+                else:
+                    kernel = kernel + akernel
 
         # Create the full GPR model
         model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
