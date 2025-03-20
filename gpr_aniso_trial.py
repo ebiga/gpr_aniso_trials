@@ -612,8 +612,9 @@ for k, v in enumerate(param3_cases):
     c = param1_param2_cases[k]
     plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
     plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
+    plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
 
-    plt.savefig(os.path.join(dafolder, 'the_contours_for_'+str(v)+'.png'))
+    plt.savefig(os.path.join(dafolder, 'the_contours_for_param3-'+str(v)+'.png'))
     plt.close()
 
 
