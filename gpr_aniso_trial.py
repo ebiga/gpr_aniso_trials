@@ -641,7 +641,7 @@ for c in param1_param2_cases:
             df['distance'] = np.abs(df['param1'] - c[1])
         closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
 
-        param_range = np.linspace( min(dataso[pranged]), max(dataso[pranged]), 100 )
+        param_range = np.linspace( min(dataso[pranged]), max(dataso[pranged]), 333 )
 
         # get the scattered points closest to the references
         XR = dataso.loc[closest_points_index][pranged]
