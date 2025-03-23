@@ -24,6 +24,8 @@ from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
+from itertools import product
+from sklearn.model_selection import KFold
 
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
@@ -32,6 +34,8 @@ torch.set_default_dtype(torch.float64)
 tf.random.set_seed(42)
 keras.utils.set_random_seed(42)
 torch.manual_seed(42)
+
+Ndimensions = 3 # first 3 columns have the breakpoints
 
 
 
@@ -93,6 +97,58 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
     Y_reduced = Y[mask]
 
     return X_reduced, Y_reduced
+
+
+# Implements a cross validation for gpflow
+# Define min and max for lengthscales and variance
+LENGTHSCALE_MIN, LENGTHSCALE_MAX = 0.1, 5.0
+VARIANCE_MIN, VARIANCE_MAX = 0.5, 15.0
+N_TRIALS = 50
+
+# Function to randomly sample hyperparameters
+def sample_hyperparameters():
+    lengthscales = np.random.uniform(LENGTHSCALE_MIN, LENGTHSCALE_MAX, size=Ndimensions)
+    variance = np.random.uniform(VARIANCE_MIN, VARIANCE_MAX)
+    return lengthscales, variance
+
+# Random search function
+def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
+    kf = KFold(n_splits=k, shuffle=True, random_state=42)
+    best_loss = float("inf")
+    best_hyperparams = None
+
+    for i in range(n_trials):
+        lengthscales, variance = sample_hyperparameters()
+        print("Trial " + str(i+1) + "/" + str(n_trials) + ": lengthscales = " + str(lengthscales) + "; variance = " + str(variance) + "\n")
+        losses = []
+
+        for train_index, val_index in kf.split(datas):
+            X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
+            y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
+
+            # Define ARD kernel with sampled hyperparameters
+            kernel = gpflow.kernels.Matern32(variance=variance, lengthscales=lengthscales)
+
+            # Train the model (without optimization)
+            model = gpflow.models.GPR(data=(X_train, y_train), kernel=kernel, noise_variance=None)
+            model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+            gpflow.set_trainable(model.likelihood.variance, False)
+
+            # Predict and compute loss
+            y_pred, _ = model.predict_f(X_val)
+            loss = np.mean((y_val - y_pred.numpy())**2)
+            losses.append(loss)
+
+        avg_loss = np.mean(losses)
+        print(f"Avg CV Loss: {avg_loss:.6f}")
+
+        # Keep track of best hyperparameters
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            best_hyperparams = (list(lengthscales), float(variance))
+
+    print(f"Best hyperparameters: lengthscales={best_hyperparams[0]}, variance={best_hyperparams[1]}, loss={best_loss:.6f}")
+    return model
 
 
 # Compute the rms of the mean
@@ -223,7 +279,6 @@ elif select_input_size == 'tiny':
 test_base = pd.read_csv('./test.csv')
 
 # Define dimensions, breakpoints and output headers
-Ndimensions = 3 # first 3 columns have the breakpoints
 brkpts = data_base.columns[:Ndimensions].to_numpy()
 output = data_base.columns[Ndimensions]
 
@@ -293,45 +348,8 @@ elif method == 'gpr.gpflow':
     trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
 
     if if_train_optim:
-        # Define the kernel parameters
-        kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=np.full(Ndimensions, 1.0))
 
-        # Define the optimizer
-        opt = gpflow.optimizers.Scipy()
-
-        # Step 1: Make an initial guess with a reduced number of points
-        r_datas, r_dataf = reduce_point_cloud(datas.to_numpy(), dataf.to_numpy().reshape(-1,1), target_fraction=r_numberofpoints)
-        r_gpr = gpflow.models.GPR(data=(r_datas, r_dataf), kernel=kernel, noise_variance=None)
-        r_gpr.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(r_gpr.likelihood.variance, False)
-
-        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(r_gpr.training_loss()))] ))
-        opt.minimize(r_gpr.training_loss, variables=r_gpr.trainable_variables, options=gpflow_options, step_callback=monitor)
-
-        msg = "Training Kernel - initial condition: " + str(generate_gpflow_kernel_code(r_gpr.kernel))
-        print(msg)
-        flightlog.write(msg+'\n')
-
-        # Step 2: Use the optimized parameters as priors for the full model
-        optimized_variance = r_gpr.kernel.variance.numpy()
-        optimized_lengthscales = r_gpr.kernel.lengthscales.numpy()
-
-        # Set priors
-        kernel.variance.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), 1.0
-        )
-        kernel.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), 1.0
-        )
-
-        # Create the full GPR model
-        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
-        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(model.likelihood.variance, False)
-
-        # Optimize the full model
-        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=monitor)
+        model = random_search_gpflow_ard(datas, dataf, k=5)
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
