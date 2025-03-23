@@ -135,7 +135,8 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
             gpflow.set_trainable(model.likelihood.variance, False)
 
             # Predict and compute loss
-            y_pred, _ = model.predict_f(X_val)
+            gposterior = model.posterior()
+            y_pred, _ = gposterior.predict_f(X_val)
             loss = np.mean((y_val - y_pred.numpy())**2)
             losses.append(loss)
 
