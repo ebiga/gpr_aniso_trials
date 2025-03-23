@@ -119,7 +119,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
 
     for i in range(n_trials):
         lengthscales, variance = sample_hyperparameters()
-        print("Trial " + str(i+1) + "/" + str(n_trials) + ": lengthscales = " + str(lengthscales) + "; variance = " + str(variance) + "\n")
+        print("Trial " + str(i+1) + "/" + str(n_trials) + ": lengthscales = " + str(lengthscales) + "; variance = " + str(variance))
         losses = []
 
         for train_index, val_index in kf.split(datas):
@@ -148,7 +148,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
             best_loss = avg_loss
             best_hyperparams = (list(lengthscales), float(variance))
 
-    print(f"Best hyperparameters: lengthscales={best_hyperparams[0]}, variance={best_hyperparams[1]}, loss={best_loss:.6f}")
+    print(f"Best hyperparameters: lengthscales={best_hyperparams[0]}, variance={best_hyperparams[1]}, loss={best_loss:.6f}\n")
     return model
 
 
