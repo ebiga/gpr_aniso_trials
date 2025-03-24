@@ -100,15 +100,20 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
 
 
 # Implements a cross validation for gpflow
+#
 # Define min and max for lengthscales and variance
-LENGTHSCALE_MIN, LENGTHSCALE_MAX = 0.3, 3.0
-VARIANCE_MIN, VARIANCE_MAX = 0.5, 5.0
-N_TRIALS = 180
+LENGTHSCALE_MIN, LENGTHSCALE_MAX = 0.5, 5.0
+VARIANCE_MIN, VARIANCE_MAX = 0.1, 10.0
+N_TRIALS = 90
+GRID_POINTS = 20
 
-# Function to randomly sample hyperparameters
+# Generate discrete grid of values
+lengthscales_grid = np.linspace(LENGTHSCALE_MIN, LENGTHSCALE_MAX, GRID_POINTS)
+variance_grid = np.linspace(VARIANCE_MIN, VARIANCE_MAX, GRID_POINTS)
+
 def sample_hyperparameters():
-    lengthscales = np.random.uniform(LENGTHSCALE_MIN, LENGTHSCALE_MAX, size=Ndimensions)
-    variance = np.random.uniform(VARIANCE_MIN, VARIANCE_MAX)
+    lengthscales = np.random.choice(lengthscales_grid, size=Ndimensions, replace=True)
+    variance = np.random.choice(variance_grid)
     return lengthscales, variance
 
 # Random search function
