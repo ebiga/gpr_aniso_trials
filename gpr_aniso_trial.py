@@ -25,7 +25,7 @@ from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
 from itertools import product
-from sklearn.model_selection import KFold
+from sklearn.model_selection import ShuffleSplit
 
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
@@ -101,9 +101,9 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
 
 # Implements a cross validation for gpflow
 # Define min and max for lengthscales and variance
-LENGTHSCALE_MIN, LENGTHSCALE_MAX = 0.1, 5.0
-VARIANCE_MIN, VARIANCE_MAX = 0.5, 15.0
-N_TRIALS = 50
+LENGTHSCALE_MIN, LENGTHSCALE_MAX = 0.3, 3.0
+VARIANCE_MIN, VARIANCE_MAX = 0.5, 5.0
+N_TRIALS = 180
 
 # Function to randomly sample hyperparameters
 def sample_hyperparameters():
@@ -113,13 +113,18 @@ def sample_hyperparameters():
 
 # Random search function
 def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
-    kf = KFold(n_splits=k, shuffle=True, random_state=42)
+    kf = ShuffleSplit(n_splits=k, test_size=0.33, random_state=42)
     best_loss = float("inf")
     best_hyperparams = None
 
     for i in range(n_trials):
-        lengthscales, variance = sample_hyperparameters()
-        print("Trial " + str(i+1) + "/" + str(n_trials) + ": lengthscales = " + str(lengthscales) + "; variance = " + str(variance))
+
+        lengthscales_1, variance_1 = sample_hyperparameters()
+        lengthscales_2, variance_2 = sample_hyperparameters()
+
+        print("Trial " + str(i+1) + "/" + str(n_trials))
+        print("  lengthscales = " + str(np.round(lengthscales_1, 3)) + "; " + str(np.round(lengthscales_2, 3)))
+        print("  variances    = " + str(np.round(variance_1, 3)) + "; " + str(np.round(variance_2, 3)))
         losses = []
 
         for train_index, val_index in kf.split(datas):
@@ -127,7 +132,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
             y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
 
             # Define ARD kernel with sampled hyperparameters
-            kernel = gpflow.kernels.Matern32(variance=variance, lengthscales=lengthscales)
+            kernel = gpflow.kernels.Matern32(variance=variance_1, lengthscales=lengthscales_1) + gpflow.kernels.Matern32(variance=variance_2, lengthscales=lengthscales_2)
 
             # Train the model (without optimization)
             model = gpflow.models.GPR(data=(X_train, y_train), kernel=kernel, noise_variance=None)
@@ -141,14 +146,12 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
             losses.append(loss)
 
         avg_loss = np.mean(losses)
-        print(f"Avg CV Loss: {avg_loss:.6f}")
+        print(f"     Avg CV Loss: {avg_loss:.6f}")
 
         # Keep track of best hyperparameters
         if avg_loss < best_loss:
             best_loss = avg_loss
-            best_hyperparams = (list(lengthscales), float(variance))
 
-    print(f"Best hyperparameters: lengthscales={best_hyperparams[0]}, variance={best_hyperparams[1]}, loss={best_loss:.6f}\n")
     return model
 
 
