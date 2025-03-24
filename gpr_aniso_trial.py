@@ -26,6 +26,7 @@ from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
 from itertools import product
 from sklearn.model_selection import ShuffleSplit
+from joblib import Parallel, delayed
 
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
@@ -104,33 +105,30 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
 # Define min and max for lengthscales and variance
 LENGTHSCALE_MIN, LENGTHSCALE_MAX = 0.5, 5.0
 VARIANCE_MIN, VARIANCE_MAX = 0.1, 10.0
-N_TRIALS = 90
-GRID_POINTS = 20
+N_TRIALS = 250
+GRID_POINTS = 10
 
 # Generate discrete grid of values
 lengthscales_grid = np.linspace(LENGTHSCALE_MIN, LENGTHSCALE_MAX, GRID_POINTS)
 variance_grid = np.linspace(VARIANCE_MIN, VARIANCE_MAX, GRID_POINTS)
 
 def sample_hyperparameters():
-    lengthscales = np.random.choice(lengthscales_grid, size=Ndimensions, replace=True)
+    lengthscales = np.random.choice(lengthscales_grid) #, size=Ndimensions, replace=True)
     variance = np.random.choice(variance_grid)
     return lengthscales, variance
 
 # Random search function
-def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
+def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS, n_jobs=4):
     kf = ShuffleSplit(n_splits=k, test_size=0.33, random_state=42)
     best_loss = float("inf")
+    best_model = None
 
-    for i in range(n_trials):
-
+    def evaluate_trial(trial_idx):
+        """Runs a single trial of hyperparameter selection and CV evaluation."""
         lengthscales_1, variance_1 = sample_hyperparameters()
         lengthscales_2, variance_2 = sample_hyperparameters()
 
-        print("Trial " + str(i+1) + "/" + str(n_trials))
-        print("  lengthscales = " + str(np.round(lengthscales_1, 3)) + "; " + str(np.round(lengthscales_2, 3)))
-        print("  variances    = " + str(np.round(variance_1, 3)) + "; " + str(np.round(variance_2, 3)))
         losses = []
-
         for train_index, val_index in kf.split(datas):
             X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
             y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
@@ -140,23 +138,32 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
 
             # Train the model (without optimization)
             model = gpflow.models.GPR(data=(X_train, y_train), kernel=kernel, noise_variance=None)
-            model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+            model.likelihood.variance = gpflow.Parameter(1e-8, transform=gpflow.utilities.positive(lower=1e-9))
             gpflow.set_trainable(model.likelihood.variance, False)
 
             # Predict and compute loss
-            gposterior = model.posterior()
-            y_pred, _ = gposterior.predict_f(X_val)
+            y_pred, _ = model.posterior().predict_f(X_val)
             loss = np.mean((y_val - y_pred.numpy())**2)
             losses.append(loss)
 
         avg_loss = np.mean(losses)
+
+        print(f"Trial {trial_idx+1}/{n_trials}")
+        print(f"  lengthscales = {np.round(lengthscales_1, 3)}; {np.round(lengthscales_2, 3)}")
+        print(f"  variances    = {np.round(variance_1, 3)}; {np.round(variance_2, 3)}")
         print(f"     Avg CV Loss: {avg_loss:.6f}")
 
-        # Keep track of best hyperparameters
-        if avg_loss < best_loss:
-            best_loss = avg_loss
+        return avg_loss, model
 
-    return model
+    # Run trials in parallel
+    results = Parallel(n_jobs=n_jobs, verbose=1)(
+        delayed(evaluate_trial)(i) for i in range(n_trials)
+    )
+
+    # Select the best model
+    _, best_model = min(results, key=lambda x: x[0])
+
+    return best_model
 
 
 # Compute the rms of the mean
