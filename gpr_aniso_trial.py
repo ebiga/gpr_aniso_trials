@@ -115,7 +115,6 @@ def sample_hyperparameters():
 def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS):
     kf = ShuffleSplit(n_splits=k, test_size=0.33, random_state=42)
     best_loss = float("inf")
-    best_hyperparams = None
 
     for i in range(n_trials):
 
