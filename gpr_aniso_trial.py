@@ -109,8 +109,8 @@ N_TRIALS = 250
 GRID_POINTS = 10
 
 # Generate discrete grid of values
-lengthscales_grid = np.linspace(LENGTHSCALE_MIN, LENGTHSCALE_MAX, GRID_POINTS)
-variance_grid = np.linspace(VARIANCE_MIN, VARIANCE_MAX, GRID_POINTS)
+lengthscales_grid = np.exp(np.linspace(np.log(LENGTHSCALE_MIN), np.log(LENGTHSCALE_MAX), GRID_POINTS))
+variance_grid = np.exp(np.linspace(np.log(VARIANCE_MIN), np.log(VARIANCE_MAX), GRID_POINTS))
 
 def sample_hyperparameters():
     lengthscales = np.random.choice(lengthscales_grid) #, size=Ndimensions, replace=True)
