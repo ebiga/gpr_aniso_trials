@@ -109,24 +109,33 @@ N_TRIALS = 250
 GRID_POINTS = 10
 
 # Generate discrete grid of values
+used_conditions = set()
 lengthscales_grid = np.exp(np.linspace(np.log(LENGTHSCALE_MIN), np.log(LENGTHSCALE_MAX), GRID_POINTS))
 variance_grid = np.exp(np.linspace(np.log(VARIANCE_MIN), np.log(VARIANCE_MAX), GRID_POINTS))
 
 def sample_hyperparameters():
-    lengthscales = np.random.choice(lengthscales_grid) #, size=Ndimensions, replace=True)
-    variance = np.random.choice(variance_grid)
-    return lengthscales, variance
+    while True:
+        lengthscales = tuple(np.random.choice(lengthscales_grid, size=Ndimensions, replace=True))
+        variance = float(np.random.choice(variance_grid))
+        factor_l2 = float(np.random.choice(lengthscales_grid))
+        
+        condition = (lengthscales, variance, factor_l2)
+
+        if condition not in used_conditions:
+            used_conditions.add(condition)
+            return np.array(lengthscales), variance, factor_l2
 
 # Random search function
 def random_search_gpflow_ard(datas, dataf, k=5, n_trials=N_TRIALS, n_jobs=4):
-    kf = ShuffleSplit(n_splits=k, test_size=0.33, random_state=42)
+    kf = ShuffleSplit(n_splits=k, test_size=0.3, random_state=42)
     best_loss = float("inf")
     best_model = None
 
     def evaluate_trial(trial_idx):
         """Runs a single trial of hyperparameter selection and CV evaluation."""
-        lengthscales_1, variance_1 = sample_hyperparameters()
-        lengthscales_2, variance_2 = sample_hyperparameters()
+        lengthscales_1, variance_1, f2 = sample_hyperparameters()
+        lengthscales_2 = f2 * lengthscales_1
+        variance_2 = 1.
 
         losses = []
         for train_index, val_index in kf.split(datas):
