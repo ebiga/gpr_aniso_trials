@@ -33,12 +33,13 @@ gpflow_setup:
 }
 
 # Neural network options
+#  provide the hidden layers as a vector with the number of neurons [n1, n2, ...] for as many layers
 keras_setup:
 {
     learning_rate: 0.002,
     epochs: 75,
     batch_size: 32,
-    hidden_layers: 1024,
+    hidden_layers: [1024, 512],
 
     multiheadattention_setup:
     {
