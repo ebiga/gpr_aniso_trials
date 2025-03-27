@@ -424,12 +424,11 @@ elif method == 'nn.tf':
         input_shape = datas.to_numpy().shape[1:]
 
         # Setup the neural network
-        model = keras.Sequential([
-            layers.Input(shape=input_shape),
-            layers.Dense(Ndimensions),
-                layers.Dense(keras_options["hidden_layers"], activation='elu', kernel_initializer='he_normal'),
-            layers.Dense(1)
-            ])
+        model = keras.Sequential(
+            [layers.Input(shape=input_shape)] +
+            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in keras_options["hidden_layers"]] +
+            [layers.Dense(1)]
+            )
 
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
@@ -468,14 +467,15 @@ elif method == 'at.tf':
         # Apply Multi-Head Attention
         re_inputs = ExpandALayer()(inputs)
         attention_output = layers.MultiHeadAttention(num_heads=keras_options["multiheadattention_setup"]["num_heads"], key_dim=Ndimensions)(re_inputs, re_inputs)
-        attention_output = SqueezeALayer()(attention_output)
+        output = SqueezeALayer()(attention_output)
 
         # Fully connected layers
-        dense_output = layers.Dense(keras_options["hidden_layers"], activation="elu", kernel_initializer='he_normal')(attention_output)
-        final_output = layers.Dense(1)(dense_output)
+        for nn in keras_options["hidden_layers"]:
+            output = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(output)
+        output = layers.Dense(1)(output)
 
         # Create model
-        model = keras.models.Model(inputs=inputs, outputs=final_output)
+        model = keras.models.Model(inputs=inputs, outputs=output)
 
         model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
