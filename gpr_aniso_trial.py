@@ -242,9 +242,9 @@ datas = dataso.copy()
 tests = testso.copy()
 
 for i, b in enumerate(brkpts):
-    NormMini   = np.min(dataso[b])
-    NormDlt[i] = np.max(dataso[b]) - NormMini
-    NormMin[i] = NormMini/NormDlt[i] + 0.5
+    NormMini   = np.average(np.unique(dataso[b]))
+    NormDlt[i] = np.std(np.unique(dataso[b]))
+    NormMin[i] = NormMini/NormDlt[i]
 
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
     tests[b] = testso[b]/NormDlt[i] - NormMin[i]
