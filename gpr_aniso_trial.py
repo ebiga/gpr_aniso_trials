@@ -334,7 +334,7 @@ elif method == 'gpr.gpflow':
         # Step 2: Use the optimized parameters as priors for the full model
         varvar = 0.5
         # Set priors
-        if not isinstance(r_gpr.kernel, gpflow.kernels.Sum):
+        if not (isinstance(r_gpr.kernel, gpflow.kernels.Sum) or isinstance(r_gpr.kernel, gpflow.kernels.Product)):
             # Single Kernel
             optimized_variance = r_gpr.kernel.variance.numpy()
             r_gpr.kernel.variance.prior = tfp.distributions.LogNormal(
