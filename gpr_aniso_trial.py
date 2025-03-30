@@ -223,12 +223,12 @@ elif select_input_size == 'tiny':
 test_base = pd.read_csv('./test.csv')
 
 # Define dimensions, breakpoints and output headers
-Ndimensions = 3 # first 3 columns have the breakpoints
+Ndimensions = 2 # first 3 columns have the breakpoints
 brkpts = data_base.columns[:Ndimensions].to_numpy()
-output = data_base.columns[Ndimensions]
+output = data_base.columns[-1]
 
 # separate the data sets into breakpoints and outputs
-dataso = data_base[brkpts].astype(np.float64)
+dataso = data_base.loc[data_base['param3'] == 0.7][brkpts].astype(np.float64)
 dataf  = data_base[output].astype(np.float64)
 
 testso = test_base[brkpts].astype(np.float64)
@@ -307,7 +307,7 @@ elif method == 'gpr.gpflow':
             tf.math.log(gpflow.utilities.to_default_float(1.)), 0.5
         )
         kernel2.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(2.)), 0.5
+            tf.math.log(gpflow.utilities.to_default_float(4.)), 0.5
         )
 
         kernel = kernel1 + kernel2
@@ -552,74 +552,70 @@ if if_train_optim:
 
 
 # reference points to plot, provided in the original "dimensional" space
-param1_param2_cases = [['c1', 13.25, 1.39, 0.7], ['c2', 27.8, 7.4, 0.8]]
-param3_cases = [0.7, 0.8]
+param1_param2_cases = [['c1', 13.25, 1.39], ['c2', 27.8, 7.4]]
 
 # contours
-for k, v in enumerate(param3_cases):
-    fig = plt.figure(figsize=(12, 10))
-    fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
-    ax = fig.add_subplot(111)
+fig = plt.figure(figsize=(12, 10))
+ax = fig.add_subplot(111)
 
-    # define the levels for the plot
-    levels = np.arange(0.04,0.24,0.02)
+# define the levels for the plot
+levels = np.arange(0.04,0.24,0.02)
 
-    # prepare the arrays
-    ngrid = 51
+# prepare the arrays
+ngrid = 51
 
-    So = pd.DataFrame( {col: [pd.NA] * ngrid*ngrid for col in dataso.columns} )
+So = pd.DataFrame( {col: [pd.NA] * ngrid*ngrid for col in dataso.columns} )
 
-    X = np.linspace( min(dataso['param1']), max(dataso['param1']), ngrid )
-    Y = np.linspace( min(dataso['param2']), max(dataso['param2']), ngrid )
+X = np.linspace( min(dataso['param1']), max(dataso['param1']), ngrid )
+Y = np.linspace( min(dataso['param2']), max(dataso['param2']), ngrid )
 
-    XX, YY = np.meshgrid(X, Y)
+XX, YY = np.meshgrid(X, Y)
 
-    So['param1'] = XX.ravel()
-    So['param2'] = YY.ravel()
-    So['param3'] = v
+So['param1'] = XX.ravel()
+So['param2'] = YY.ravel()
 
-    S = So.copy()
-    for i, b in enumerate(brkpts):
-        S[b] = So[b]/NormDlt[i] - NormMin[i]
+S = So.copy()
+for i, b in enumerate(brkpts):
+    S[b] = So[b]/NormDlt[i] - NormMin[i]
 
-    Z2 = my_predicts(model, S.to_numpy()).reshape(ngrid, ngrid)
+Z2 = my_predicts(model, S.to_numpy()).reshape(ngrid, ngrid)
 
-    COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed', linewidths=0.5)
+COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed', linewidths=0.5)
 
-    # fetch the reference data
-    filtered_indices = dataso[ np.round(dataso['param3'], decimals=6) == v].index
+# fetch the reference data
+filtered_indices = dataso.index
 
-    X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
-    Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
+X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
+Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
 
-    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
+Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
 
-    COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid', linewidths=1)
+COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid', linewidths=1)
 
-    # finalise the plot
-    plt.clabel(COU, fontsize=9)
+# finalise the plot
+plt.clabel(COU, fontsize=9)
 
-    lines = [
-        Line2D([0], [0], color='black', linestyle='solid' , linewidth=1.0),
-        Line2D([0], [0], color='black', linestyle='dashed', linewidth=0.5),
-    ]
-    labels = ['ref', 'fitted']
-    plt.legend(lines, labels)
+lines = [
+    Line2D([0], [0], color='black', linestyle='solid' , linewidth=1.0),
+    Line2D([0], [0], color='black', linestyle='dashed', linewidth=0.5),
+]
+labels = ['ref', 'fitted']
+plt.legend(lines, labels)
 
-    ax.set_xlabel('param1')
-    ax.set_ylabel('param2')
+ax.set_xlabel('param1')
+ax.set_ylabel('param2')
 
-    c = param1_param2_cases[k]
-    plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
-    plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
-    plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
+c = param1_param2_cases[k]
+plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
+plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
+plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
 
-    plt.savefig(os.path.join(dafolder, 'the_contours_for_param3-'+str(v)+'.png'))
-    plt.close()
+plt.savefig(os.path.join(dafolder, 'the_contours_.png'))
+plt.close()
 
 
 # X-Ys
-params_to_range = ['param3', 'param2']
+params_to_range = ['param2']
 
 for c in param1_param2_cases:
 
@@ -629,16 +625,9 @@ for c in param1_param2_cases:
         fig = plt.figure(figsize=(12, 10))
         ax = fig.add_subplot(111)
 
-        if pranged == 'param3':
-            psearch = 'param2'
-            cx = c[2]
-        elif pranged == 'param2':
-            psearch = 'param3'
-            cx = c[3]
-
         # get the closest points from the original "dimensional" data
         df = pd.DataFrame(dataso)
-        df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df[psearch] - cx)**2)
+        df['distance'] = df['param1'] - c[1]
         closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
 
         param_range = np.linspace( min(dataso[pranged]), max(dataso[pranged]), 333 )
@@ -649,14 +638,12 @@ for c in param1_param2_cases:
 
         # Fit the data to generate the plot
         c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
-        c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][psearch] ).item()
 
-        fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; " + psearch + " "+str(round(c_paramx,3)), fontsize=14)
+        fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3)), fontsize=14)
 
         # create the X dimension to be fitted
         Xo = pd.DataFrame( {col: [pd.NA] * len(param_range) for col in datas.columns} )
         Xo['param1'] = c_param1
-        Xo[psearch] = c_paramx
         Xo[pranged] = param_range
 
         X = Xo.copy()
@@ -684,25 +671,17 @@ num_points = len(testf)
 # Define symbols and sizes
 markers = ['*', '^', 's', 'D']
 sizes   = [30, 60, 90, 120]
-colors  = sns.color_palette("husl", 5)
 
 # Assign quartiles
 param1_q = np.digitize(testso['param1'], np.percentile(testso['param1'], [25, 50, 75]), right=True)
 param2_q = np.digitize(testso['param2'], np.percentile(testso['param2'], [25, 50, 75]), right=True)
 
-param3_max = max(testso['param3'])
-param3_min = min(testso['param3'])
-param3_dlt = param3_max - param3_min
-
 # Plot
 fig, ax = plt.subplots(figsize=(8, 8))
 for i in range(num_points):
 
-    color_index = int(4 * (testso.at[i, 'param3'] - param3_min)/param3_dlt)
-
     ax.scatter(
         testf[i], meant[i],
-        color=colors[color_index],
         marker=markers[param2_q[i]],
         s=sizes[param1_q[i]],
         alpha=0.75
@@ -718,10 +697,6 @@ marker_legend = ax.legend(legend_markers, [f'Q{i+1} of Param2' for i in range(4)
 # Legend for sizes
 legend_sizes = [plt.scatter([], [], s=s, color='black') for s in sizes]
 size_legend = ax.legend(legend_sizes, [f'Q{i+1} of Param1' for i in range(4)], title="Size: Param1", loc="upper left")
-
-# Legend for colors
-legend_colors = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=10) for c in colors]
-color_legend = ax.legend(legend_colors, [f'Param3 = {i}' for i in range(5)], title="Color: Param3", loc="lower right")
 
 ax.add_artist(marker_legend)
 ax.add_artist(size_legend)
