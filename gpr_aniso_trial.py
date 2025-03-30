@@ -228,8 +228,9 @@ brkpts = data_base.columns[:Ndimensions].to_numpy()
 output = data_base.columns[-1]
 
 # separate the data sets into breakpoints and outputs
-dataso = data_base.loc[data_base['param3'] == 0.7][brkpts].astype(np.float64)
-dataf  = data_base[output].astype(np.float64)
+filtin = data_base.loc[data_base['param3'] == 0.7].index
+dataso = data_base.loc[filtin][brkpts].astype(np.float64)
+dataf  = data_base.loc[filtin][output].astype(np.float64)
 
 testso = test_base[brkpts].astype(np.float64)
 testf  = test_base[output].astype(np.float64)
