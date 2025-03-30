@@ -232,8 +232,9 @@ filtin = data_base.loc[data_base['param3'] == 0.7].index
 dataso = data_base.loc[filtin][brkpts].astype(np.float64)
 dataf  = data_base.loc[filtin][output].astype(np.float64)
 
-testso = test_base[brkpts].astype(np.float64)
-testf  = test_base[output].astype(np.float64)
+filtin = test_base.loc[test_base['param3'] == 0.7].index
+testso = test_base.loc[filtin][brkpts].astype(np.float64)
+testf  = test_base.loc[filtin][output].astype(np.float64)
 
 # make the breakpoints nondimensional, in the range [-0.5, 0.5]
 NormMin = np.full(Ndimensions, 0.)
@@ -682,7 +683,7 @@ fig, ax = plt.subplots(figsize=(8, 8))
 for i in range(num_points):
 
     ax.scatter(
-        testf[i], meant[i],
+        testf.to_numpy()[i], meant[i],
         marker=markers[param2_q[i]],
         s=sizes[param1_q[i]],
         alpha=0.75
