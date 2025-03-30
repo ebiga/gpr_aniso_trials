@@ -606,10 +606,10 @@ plt.legend(lines, labels)
 ax.set_xlabel('param1')
 ax.set_ylabel('param2')
 
-c = param1_param2_cases[k]
-plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
-plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
-plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
+for c in param1_param2_cases:
+    plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
+    plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
+    plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
 
 plt.savefig(os.path.join(dafolder, 'the_contours_.png'))
 plt.close()
@@ -628,7 +628,7 @@ for c in param1_param2_cases:
 
         # get the closest points from the original "dimensional" data
         df = pd.DataFrame(dataso)
-        df['distance'] = df['param1'] - c[1]
+        df['distance'] = np.abs(df['param1'] - c[1])
         closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
 
         param_range = np.linspace( min(dataso[pranged]), max(dataso[pranged]), 333 )
