@@ -296,23 +296,24 @@ elif method == 'gpr.gpflow':
 
     if if_train_optim:
         # Define the kernel parameters
-        kernel1 = gpflow.kernels.Matern32(variance=1.**2, lengthscales=np.full(Ndimensions, 1.))
-        kernel2 = gpflow.kernels.Matern32(variance=1.**2, lengthscales=np.full(Ndimensions, 4.))
-
-        kernel1.variance.prior = tfp.distributions.LogNormal(
+        kernel = gpflow.kernels.Matern32(variance=1.**2, lengthscales=np.full(Ndimensions, 1.))
+        kernel.variance.prior = tfp.distributions.LogNormal(
             tf.math.log(gpflow.utilities.to_default_float(1.)), 0.5
         )
-        kernel1.lengthscales.prior = tfp.distributions.LogNormal(
+        kernel.lengthscales.prior = tfp.distributions.LogNormal(
             tf.math.log(gpflow.utilities.to_default_float(2.)), 0.5
         )
-        kernel2.variance.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(1.)), 0.5
-        )
-        kernel2.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(4.)), 0.5
-        )
 
-        kernel = kernel1 + kernel2
+        for k in range(1):
+            kkernel = gpflow.kernels.Matern32(variance=1.**2, lengthscales=np.full(Ndimensions, 4.))
+            kkernel.variance.prior = tfp.distributions.LogNormal(
+                tf.math.log(gpflow.utilities.to_default_float(1.)), 0.5
+            )
+            kkernel.lengthscales.prior = tfp.distributions.LogNormal(
+                tf.math.log(gpflow.utilities.to_default_float(4.)), 0.5
+            )
+
+            kernel = kernel + kkernel
 
         # Define the optimizer
         opt = gpflow.optimizers.Scipy()
