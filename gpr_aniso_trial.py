@@ -296,22 +296,24 @@ elif method == 'gpr.gpflow':
 
     if if_train_optim:
         # Define the kernel parameters
-        kernel = gpflow.kernels.Matern32(variance=1.**2, lengthscales=np.full(Ndimensions, 1.))
+        kernel = gpflow.kernels.RationalQuadratic(variance=1.**2, lengthscales=4., alpha=0.005)
         kernel.variance.prior = tfp.distributions.LogNormal(
             tf.math.log(gpflow.utilities.to_default_float(1.)), 0.5
         )
         kernel.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(2.)), 0.5
+            tf.math.log(gpflow.utilities.to_default_float(4.)), 0.2
         )
+        gpflow.set_trainable(kernel.alpha, False)
 
         for k in range(1):
-            kkernel = gpflow.kernels.Matern32(variance=1.**2, lengthscales=np.full(Ndimensions, 4.))
+            kkernel = gpflow.kernels.RationalQuadratic(variance=1.**2, lengthscales=8., alpha=0.005)
             kkernel.variance.prior = tfp.distributions.LogNormal(
                 tf.math.log(gpflow.utilities.to_default_float(1.)), 0.5
             )
             kkernel.lengthscales.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(4.)), 0.5
+                tf.math.log(gpflow.utilities.to_default_float(8.)), 0.2
             )
+            gpflow.set_trainable(kkernel.alpha, False)
 
             kernel = kernel + kkernel
 
