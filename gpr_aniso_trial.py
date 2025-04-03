@@ -540,7 +540,7 @@ param1_param2_cases = [['c1', 13.25, 1.39, 0.7], ['c2', 27.8, 7.4, 0.8]]
 if select_dimension == '3D':
     param3_cases = [0.7, 0.8]
 elif select_dimension == '2D':
-    param3_cases = select_dimension
+    param3_cases = [select_dimension]
 
 # contours
 for k, v in enumerate(param3_cases):
@@ -599,10 +599,14 @@ for k, v in enumerate(param3_cases):
     ax.set_xlabel('param1')
     ax.set_ylabel('param2')
 
-    c = param1_param2_cases[k]
-    plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
-    plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
-    plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
+    if select_dimension == '3D':
+        pts_in_the_plot = param1_param2_cases[k]
+    else:
+        pts_in_the_plot = param1_param2_cases
+    for c in param1_param2_cases:
+        plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
+        plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
+        plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
 
     plt.savefig(os.path.join(dafolder, 'the_contours_for_param3-'+str(v)+'.png'))
     plt.close()
