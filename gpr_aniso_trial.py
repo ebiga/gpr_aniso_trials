@@ -241,10 +241,12 @@ NormDlt = np.full(Ndimensions, 1.)
 datas = dataso.copy()
 tests = testso.copy()
 
+fact = np.array([NgridX, NgridY, NgridZ])/NgridZ
+
 for i, b in enumerate(brkpts):
-    NormMini   = np.mean(np.unique(dataso[b]))
-    NormDlt[i] = np.std(np.unique(dataso[b]), ddof=1)
-    NormMin[i] = NormMini/NormDlt[i]
+    NormMini   = np.min(dataso[b])
+    NormDlt[i] = (np.max(dataso[b]) - NormMini)/fact[i]
+    NormMin[i] = NormMini/NormDlt[i] + fact[i]*0.5
 
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
     tests[b] = testso[b]/NormDlt[i] - NormMin[i]
