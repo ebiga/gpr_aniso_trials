@@ -168,6 +168,7 @@ start_time = time.time()
 with open('./casesetup.hjson', 'r') as casesetupfile:
     casesetup = hjson.load(casesetupfile)
 
+select_dimension = casesetup['select_dimension']
 select_input_size = casesetup['select_input_size']
 method = casesetup['method']
 if_train_optim = casesetup['if_train_optim']
@@ -223,16 +224,34 @@ elif select_input_size == 'tiny':
 test_base = pd.read_csv('./test.csv')
 
 # Define dimensions, breakpoints and output headers
-Ndimensions = 3 # first 3 columns have the breakpoints
+if select_dimension == '3D':
+    Ndimensions = 3 # first 3 columns have the breakpoints
+elif select_dimension == '2D':
+    Ndimensions = 2 # third column, param3, is downselected from the mid value
+    param3fix = 0.7
+else:
+    print('ERROR: wrong "select_dimension".')
+    exit()
+
 brkpts = data_base.columns[:Ndimensions].to_numpy()
-output = data_base.columns[Ndimensions]
+output = data_base.columns[-1]
 
 # separate the data sets into breakpoints and outputs
-dataso = data_base[brkpts].astype(np.float64)
-dataf  = data_base[output].astype(np.float64)
+if select_dimension == '3D':
+    filtin = data_base.index
+elif select_dimension == '2D':
+    filtin = data_base.loc[data_base['param3'] == param3fix].index
 
-testso = test_base[brkpts].astype(np.float64)
-testf  = test_base[output].astype(np.float64)
+dataso = data_base.loc[filtin][brkpts].astype(np.float64)
+dataf  = data_base.loc[filtin][output].astype(np.float64)
+
+if select_dimension == '3D':
+    filtin = test_base.index
+elif select_dimension == '2D':
+    filtin = test_base.loc[test_base['param3'] == param3fix].index
+
+testso = test_base.loc[filtin][brkpts].astype(np.float64)
+testf  = test_base.loc[filtin][output].astype(np.float64)
 
 # make the breakpoints nondimensional, in the range [-0.5, 0.5]
 NormMin = np.full(Ndimensions, 0.)

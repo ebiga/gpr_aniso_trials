@@ -1,7 +1,11 @@
 
-# there are three sizes to pick from:
+# there are four sizes to pick from:
 #  full, mid, small, tiny
 select_input_size: 'small'
+
+# you can run the full 3D case or a 2D slice at mid param3
+#  2D, 3D
+select_dimension: '3D'
 
 # fitting methods available:
 #  'gpr.scikit': GPR by scikit-learn
