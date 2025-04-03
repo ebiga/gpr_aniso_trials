@@ -179,7 +179,7 @@ gpytorch_options = casesetup['gpytorch_setup']
 n_restarts_optimizer = casesetup['scikit_setup']['n_restarts_optimizer']
 
 # file locations
-dafolder = method
+dafolder = method + "_" + select_dimension
 os.makedirs(dafolder, exist_ok=True)
 
 flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
