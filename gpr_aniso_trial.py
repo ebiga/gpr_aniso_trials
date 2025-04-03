@@ -330,6 +330,7 @@ elif method == 'gpr.gpflow':
         stddev = 0.1
 
         for iks in range(NUM_REPEATS):
+            print("iter ", iks)
             vars = np.random.choice(variance_grid)
             lens = np.random.choice(lengthss_grid)
 
@@ -406,11 +407,11 @@ elif method == 'gpr.gpflow':
                 monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
                 opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True, step_callback=monitor)
 
-                likelihud = model.log_marginal_likelihood().numpy()
-                if likelihud < best_likelihud:
-                    best_likelihud = likelihud
-                    best_model = model
-                    print(iks, best_likelihud)
+            likelihud = model.log_marginal_likelihood().numpy()
+            if likelihud < best_likelihud:
+                best_likelihud = likelihud
+                best_model = model
+                print("  we have a good one here: ", best_likelihud)
 
         model = best_model
 
