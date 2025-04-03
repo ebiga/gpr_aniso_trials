@@ -536,12 +536,16 @@ if if_train_optim:
 
 # reference points to plot, provided in the original "dimensional" space
 param1_param2_cases = [['c1', 13.25, 1.39, 0.7], ['c2', 27.8, 7.4, 0.8]]
-param3_cases = [0.7, 0.8]
+
+if select_dimension == '3D':
+    param3_cases = [0.7, 0.8]
+elif select_dimension == '2D':
+    param3_cases = select_dimension
 
 # contours
 for k, v in enumerate(param3_cases):
     fig = plt.figure(figsize=(12, 10))
-    fig.suptitle("Param3 "+str(round(v,3)), fontsize=14)
+    fig.suptitle("Param3 "+str(v), fontsize=14)
     ax = fig.add_subplot(111)
 
     # define the levels for the plot
@@ -559,7 +563,12 @@ for k, v in enumerate(param3_cases):
 
     So['param1'] = XX.ravel()
     So['param2'] = YY.ravel()
-    So['param3'] = v
+
+    if select_dimension == '3D':
+        So['param3'] = v
+        filtered_indices = dataso[ np.round(dataso['param3'], decimals=6) == v].index
+    else:
+        filtered_indices = dataso.index
 
     S = So.copy()
     for i, b in enumerate(brkpts):
@@ -570,8 +579,6 @@ for k, v in enumerate(param3_cases):
     COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed', linewidths=0.5)
 
     # fetch the reference data
-    filtered_indices = dataso[ np.round(dataso['param3'], decimals=6) == v].index
-
     X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
     Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
 
@@ -602,7 +609,10 @@ for k, v in enumerate(param3_cases):
 
 
 # X-Ys
-params_to_range = ['param3', 'param2']
+if select_dimension == '3D':
+    params_to_range = ['param3', 'param2']
+elif select_dimension == '2D':
+    params_to_range = ['param2']
 
 for c in param1_param2_cases:
 
@@ -621,7 +631,10 @@ for c in param1_param2_cases:
 
         # get the closest points from the original "dimensional" data
         df = pd.DataFrame(dataso)
-        df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df[psearch] - cx)**2)
+        if select_dimension == '3D':
+            df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df[psearch] - cx)**2)
+        else:
+            df['distance'] = np.abs(df['param1'] - c[1])
         closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
 
         param_range = np.linspace( min(dataso[pranged]), max(dataso[pranged]), 100 )
@@ -632,14 +645,16 @@ for c in param1_param2_cases:
 
         # Fit the data to generate the plot
         c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
-        c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][psearch] ).item()
-
-        fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; " + psearch + " "+str(round(c_paramx,3)), fontsize=14)
+        if select_dimension == '3D':
+            c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][psearch] ).item()
+            fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; " + psearch + " "+str(round(c_paramx,3)), fontsize=14)
+        else:
+            fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3)), fontsize=14)
 
         # create the X dimension to be fitted
         Xo = pd.DataFrame( {col: [pd.NA] * len(param_range) for col in datas.columns} )
         Xo['param1'] = c_param1
-        Xo[psearch] = c_paramx
+        if select_dimension == '3D': Xo[psearch] = c_paramx
         Xo[pranged] = param_range
 
         X = Xo.copy()
@@ -673,18 +688,22 @@ colors  = sns.color_palette("husl", 5)
 param1_q = np.digitize(testso['param1'], np.percentile(testso['param1'], [25, 50, 75]), right=True)
 param2_q = np.digitize(testso['param2'], np.percentile(testso['param2'], [25, 50, 75]), right=True)
 
-param3_max = max(testso['param3'])
-param3_min = min(testso['param3'])
-param3_dlt = param3_max - param3_min
+if select_dimension == '3D':
+    param3_max = max(testso['param3'])
+    param3_min = min(testso['param3'])
+    param3_dlt = param3_max - param3_min
 
 # Plot
 fig, ax = plt.subplots(figsize=(8, 8))
 for i in range(num_points):
 
-    color_index = int(4 * (testso.at[i, 'param3'] - param3_min)/param3_dlt)
+    if select_dimension == '3D':
+        color_index = int(4 * (testso.at[i, 'param3'] - param3_min)/param3_dlt)
+    else:
+        color_index = 0
 
     ax.scatter(
-        testf[i], meant[i],
+        testf.to_numpy()[i], meant[i],
         color=colors[color_index],
         marker=markers[param2_q[i]],
         s=sizes[param1_q[i]],
@@ -703,8 +722,9 @@ legend_sizes = [plt.scatter([], [], s=s, color='black') for s in sizes]
 size_legend = ax.legend(legend_sizes, [f'Q{i+1} of Param1' for i in range(4)], title="Size: Param1", loc="upper left")
 
 # Legend for colors
-legend_colors = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=10) for c in colors]
-color_legend = ax.legend(legend_colors, [f'Param3 = {i}' for i in range(5)], title="Color: Param3", loc="lower right")
+if select_dimension == '3D':
+    legend_colors = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=10) for c in colors]
+    color_legend = ax.legend(legend_colors, [f'Param3 = {i}' for i in range(5)], title="Color: Param3", loc="lower right")
 
 ax.add_artist(marker_legend)
 ax.add_artist(size_legend)
