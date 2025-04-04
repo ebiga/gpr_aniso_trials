@@ -341,7 +341,7 @@ elif method == 'gpr.gpflow':
 
 
             # Define the kernel parameters
-            kernel = gpflow.kernels.RationalQuadratic(alpha=0.005)
+            kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
             kernel.variance.prior = tfp.distributions.LogNormal(
                 tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
             )
@@ -355,7 +355,7 @@ elif method == 'gpr.gpflow':
                 vars = facs * vars
                 lens = facs * lens
 
-                kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005)
+                kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
                 kkernel.variance.prior = tfp.distributions.LogNormal(
                     tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
                 )
