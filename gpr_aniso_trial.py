@@ -324,13 +324,13 @@ elif method == 'gpr.gpflow':
         best_model = None
 
         GRID_POINTS = 5
-        NUM_REPEATS = 12
+        NUM_REPEATS = 16
         NUM_RETRIES = 1
         NUM_KERNELS = 2
 
-        variance_grid = np.exp(np.linspace(np.log(1.0), np.log(6.0), GRID_POINTS))
-        lengthss_grid = np.exp(np.linspace(np.log(0.1), np.log(6.0), GRID_POINTS))
-        scalings_grid = np.exp(np.linspace(np.log(0.1), np.log(1.0), GRID_POINTS))
+        variance_grid = np.exp(np.linspace(np.log(3.0), np.log(9.0), GRID_POINTS))
+        lengthss_grid = np.exp(np.linspace(np.log(4.0), np.log(8.0), GRID_POINTS))
+        scalings_grid = np.exp(np.linspace(np.log(0.05), np.log(0.5), GRID_POINTS))
 
         stddev = 0.1
 
@@ -352,7 +352,7 @@ elif method == 'gpr.gpflow':
 
             for otherks in range(NUM_KERNELS-1):
                 facs = np.random.choice(scalings_grid)
-                vars = facs * vars
+                vars = facs**2 * vars
                 lens = facs * lens
 
                 kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
