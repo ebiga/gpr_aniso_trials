@@ -210,8 +210,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
             kernel = kernel + kkernel
 
-        print(f"Trial {trial_idx+1}/{n_trials}")
-        print(f"  Kernel - init: {generate_gpflow_kernel_code(kernel)}")
+        kernelinitlog = generate_gpflow_kernel_code(kernel)
 
         losses = []
         for train_index, val_index in kf.split(datas):
@@ -233,6 +232,8 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
         avg_loss = np.mean(losses)
 
+        print(f"Trial {trial_idx+1}/{n_trials}")
+        print(f"  Kernel - init: {kernelinitlog}")
         print(f"  Kernel - fine: {generate_gpflow_kernel_code(model.kernel)}")
         print(f"     Avg CV Loss: {avg_loss:.6f}")
 
