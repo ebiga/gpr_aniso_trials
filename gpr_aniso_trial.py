@@ -179,8 +179,6 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     opt = gpflow.optimizers.Scipy()
 
     kf = ShuffleSplit(n_splits=k, test_size=0.25, random_state=42)
-    best_loss = float("inf")
-    best_model = None
 
     def evaluate_trial(trial_idx):
 
@@ -212,7 +210,11 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
         kernelinitlog = generate_gpflow_kernel_code(kernel)
 
-        losses = []
+        # zero out the best selection
+        best_loss = float("inf")
+        best_model = None
+
+        # Fold you, fold me
         for train_index, val_index in kf.split(datas):
             X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
             y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
@@ -228,16 +230,17 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
             # Predict and compute loss
             y_pred, _ = model.posterior().predict_f(X_val)
             loss = np.mean((y_val - y_pred.numpy())**2)
-            losses.append(loss)
 
-        avg_loss = np.mean(losses)
+            if loss < best_loss:
+                best_loss = loss
+                best_model = model
 
         print(f"Trial {trial_idx+1}/{n_trials}")
         print(f"  Kernel - init: {kernelinitlog}")
-        print(f"  Kernel - fine: {generate_gpflow_kernel_code(model.kernel)}")
-        print(f"     Avg CV Loss: {avg_loss:.6f}")
+        print(f"  Kernel - fine: {generate_gpflow_kernel_code(best_model.kernel)}")
+        print(f"     Avg CV Loss: {best_loss:.6f}")
 
-        return avg_loss, model
+        return best_loss, best_model
 
     # Run trials in parallel
     results = Parallel(n_jobs=n_jobs, verbose=1)(
