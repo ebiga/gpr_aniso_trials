@@ -365,6 +365,9 @@ elif method == 'gpr.gpflow':
                 gpflow.set_trainable(kkernel.alpha, False)
 
                 kernel = kernel + kkernel
+            
+            msg = "   current kernel - init: " + str(generate_gpflow_kernel_code(kernel))
+            print(msg)
 
 
             # Create the full GPR model
@@ -411,6 +414,10 @@ elif method == 'gpr.gpflow':
                 # Optimize the full model
                 monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
                 opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True, step_callback=monitor)
+
+                msg = "   current kernel - rs " + str(kop) + ": " + str(generate_gpflow_kernel_code(model.kernel))
+                print(msg)
+
 
             likelihud = model.log_marginal_likelihood().numpy()
             if likelihud < best_likelihud:
