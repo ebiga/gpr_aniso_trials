@@ -24,6 +24,8 @@ from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
+from sklearn.model_selection import ShuffleSplit
+from joblib import Parallel, delayed
 
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
@@ -162,6 +164,89 @@ class SqueezeALayer(layers.Layer):
         return tf.squeeze(x, axis=1)
 
 
+# A KFold thingy going on
+GRID_POINTS = 5
+NUM_REPEATS = 16
+NUM_KERNELS = 2
+
+variance_grid = np.exp(np.linspace(np.log(3.0), np.log(9.0), GRID_POINTS))
+lengthss_grid = np.exp(np.linspace(np.log(4.0), np.log(8.0), GRID_POINTS))
+scalings_grid = np.exp(np.linspace(np.log(0.05), np.log(0.5), GRID_POINTS))
+
+stddev = 0.1
+
+def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
+    opt = gpflow.optimizers.Scipy()
+
+    kf = ShuffleSplit(n_splits=k, test_size=0.25, random_state=42)
+    best_loss = float("inf")
+    best_model = None
+
+    def evaluate_trial(trial_idx):
+        vars = np.random.choice(variance_grid)
+        lens = np.random.choice(lengthss_grid)
+
+        losses = []
+        for train_index, val_index in kf.split(datas):
+            X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
+            y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
+
+            # Define the kernel parameters
+            kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
+            kernel.variance.prior = tfp.distributions.LogNormal(
+                tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
+            )
+            kernel.lengthscales.prior = tfp.distributions.LogNormal(
+                tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
+            )
+            gpflow.set_trainable(kernel.alpha, False)
+
+            for otherks in range(NUM_KERNELS-1):
+                facs = np.random.choice(scalings_grid)
+                vars = facs**2 * vars
+                lens = facs * lens
+
+                kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
+                kkernel.variance.prior = tfp.distributions.LogNormal(
+                    tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
+                )
+                kkernel.lengthscales.prior = tfp.distributions.LogNormal(
+                    tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
+                )
+                gpflow.set_trainable(kkernel.alpha, False)
+
+                kernel = kernel + kkernel
+
+            # Create the full GPR model
+            model = gpflow.models.GPR(data=(X_train, y_train), kernel=kernel, noise_variance=None)
+            model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+            gpflow.set_trainable(model.likelihood.variance, False)
+
+            # Optimize the full model
+            opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
+
+            # Predict and compute loss
+            y_pred, _ = model.posterior().predict_f(X_val)
+            loss = np.mean((y_val - y_pred.numpy())**2)
+            losses.append(loss)
+
+        avg_loss = np.mean(losses)
+
+        print(f"Trial {trial_idx+1}/{n_trials}")
+        print(f"  Kernel: {generate_gpflow_kernel_code(model.kernel)}")
+        print(f"     Avg CV Loss: {avg_loss:.6f}")
+
+        return avg_loss, model
+
+    # Run trials in parallel
+    results = Parallel(n_jobs=n_jobs, verbose=1)(
+        delayed(evaluate_trial)(i) for i in range(n_trials)
+    )
+
+    # Select the best model
+    _, best_model = min(results, key=lambda x: x[0])
+
+    return best_model
 
 
 
@@ -317,115 +402,8 @@ elif method == 'gpr.gpflow':
     trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
 
     if if_train_optim:
-        # Define the optimizer
-        opt = gpflow.optimizers.Scipy()
 
-        best_likelihud = float("inf")
-        best_model = None
-
-        GRID_POINTS = 5
-        NUM_REPEATS = 16
-        NUM_RETRIES = 1
-        NUM_KERNELS = 2
-
-        variance_grid = np.exp(np.linspace(np.log(3.0), np.log(9.0), GRID_POINTS))
-        lengthss_grid = np.exp(np.linspace(np.log(4.0), np.log(8.0), GRID_POINTS))
-        scalings_grid = np.exp(np.linspace(np.log(0.05), np.log(0.5), GRID_POINTS))
-
-        stddev = 0.1
-
-        for iks in range(NUM_REPEATS):
-            print("iter ", iks)
-            vars = np.random.choice(variance_grid)
-            lens = np.random.choice(lengthss_grid)
-
-
-            # Define the kernel parameters
-            kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
-            kernel.variance.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
-            )
-            kernel.lengthscales.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
-            )
-            gpflow.set_trainable(kernel.alpha, False)
-
-            for otherks in range(NUM_KERNELS-1):
-                facs = np.random.choice(scalings_grid)
-                vars = facs**2 * vars
-                lens = facs * lens
-
-                kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
-                kkernel.variance.prior = tfp.distributions.LogNormal(
-                    tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
-                )
-                kkernel.lengthscales.prior = tfp.distributions.LogNormal(
-                    tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
-                )
-                gpflow.set_trainable(kkernel.alpha, False)
-
-                kernel = kernel + kkernel
-            
-            msg = "   current kernel - init: " + str(generate_gpflow_kernel_code(kernel))
-            print(msg)
-
-
-            # Create the full GPR model
-            for kop in range(NUM_RETRIES):
-
-                if kop > 0:
-                    # Set priors if repeating
-                    varvar = 0.1
-
-                    if not (isinstance(model.kernel, gpflow.kernels.Sum) or isinstance(model.kernel, gpflow.kernels.Product)):
-                        # Single Kernel
-                        optimized_variance = model.kernel.variance.numpy()
-                        model.kernel.variance.prior = tfp.distributions.LogNormal(
-                            tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), varvar
-                        )
-                        optimized_lengthscales = model.kernel.lengthscales.numpy()
-                        model.kernel.lengthscales.prior = tfp.distributions.LogNormal(
-                            tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), varvar
-                        )
-
-                        kernel = model.kernel
-                    else:
-                        # Multiple Kernels
-                        for k, akernel in enumerate(model.kernel.kernels):
-                            optimized_variance = akernel.variance.numpy()
-                            akernel.variance.prior = tfp.distributions.LogNormal(
-                                tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), varvar
-                            )
-                            optimized_lengthscales = akernel.lengthscales.numpy()
-                            akernel.lengthscales.prior = tfp.distributions.LogNormal(
-                                tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), varvar
-                            )
-
-                            if k == 0:
-                                kernel = akernel
-                            else:
-                                kernel = kernel + akernel
-
-                # Create the full GPR model
-                model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
-                model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-                gpflow.set_trainable(model.likelihood.variance, False)
-
-                # Optimize the full model
-                monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
-                opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True, step_callback=monitor)
-
-                msg = "   current kernel - rs " + str(kop) + ": " + str(generate_gpflow_kernel_code(model.kernel))
-                print(msg)
-
-
-            likelihud = model.log_marginal_likelihood().numpy()
-            if likelihud < best_likelihud:
-                best_likelihud = likelihud
-                best_model = model
-                print("  we have a good one here: ", best_likelihud)
-
-        model = best_model
+        model = random_search_gpflow_ard(datas, dataf, k=5)
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
