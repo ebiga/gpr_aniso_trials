@@ -203,10 +203,8 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
             for otherks in range(NUM_KERNELS-1):
                 facs = np.random.choice(scalings_grid)
-                vars = facs**2 * vars
-                lens = facs * lens
 
-                kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
+                kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=(facs**2 * vars), lengthscales=(facs * lens))
                 kkernel.variance.prior = tfp.distributions.LogNormal(
                     tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
                 )
