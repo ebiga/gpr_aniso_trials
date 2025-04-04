@@ -183,37 +183,40 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     best_model = None
 
     def evaluate_trial(trial_idx):
+
+        # Define the kernel parameters
         vars = np.random.choice(variance_grid)
         lens = np.random.choice(lengthss_grid)
+        facs = np.random.choice(scalings_grid)
+
+        kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
+        kernel.variance.prior = tfp.distributions.LogNormal(
+            tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
+        )
+        kernel.lengthscales.prior = tfp.distributions.LogNormal(
+            tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
+        )
+        gpflow.set_trainable(kernel.alpha, False)
+
+        for otherks in range(NUM_KERNELS-1):
+            kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=(facs**2 * vars), lengthscales=(facs * lens))
+            kkernel.variance.prior = tfp.distributions.LogNormal(
+                tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
+            )
+            kkernel.lengthscales.prior = tfp.distributions.LogNormal(
+                tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
+            )
+            gpflow.set_trainable(kkernel.alpha, False)
+
+            kernel = kernel + kkernel
+
+        print(f"Trial {trial_idx+1}/{n_trials}")
+        print(f"  Kernel - init: {generate_gpflow_kernel_code(kernel)}")
 
         losses = []
         for train_index, val_index in kf.split(datas):
             X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
             y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
-
-            # Define the kernel parameters
-            kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
-            kernel.variance.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
-            )
-            kernel.lengthscales.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
-            )
-            gpflow.set_trainable(kernel.alpha, False)
-
-            for otherks in range(NUM_KERNELS-1):
-                facs = np.random.choice(scalings_grid)
-
-                kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=(facs**2 * vars), lengthscales=(facs * lens))
-                kkernel.variance.prior = tfp.distributions.LogNormal(
-                    tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
-                )
-                kkernel.lengthscales.prior = tfp.distributions.LogNormal(
-                    tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
-                )
-                gpflow.set_trainable(kkernel.alpha, False)
-
-                kernel = kernel + kkernel
 
             # Create the full GPR model
             model = gpflow.models.GPR(data=(X_train, y_train), kernel=kernel, noise_variance=None)
@@ -230,8 +233,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
         avg_loss = np.mean(losses)
 
-        print(f"Trial {trial_idx+1}/{n_trials}")
-        print(f"  Kernel: {generate_gpflow_kernel_code(model.kernel)}")
+        print(f"  Kernel - fine: {generate_gpflow_kernel_code(model.kernel)}")
         print(f"     Avg CV Loss: {avg_loss:.6f}")
 
         return avg_loss, model
