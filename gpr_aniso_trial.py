@@ -47,16 +47,21 @@ def generate_gpflow_kernel_code(kernel):
         params = []
         # Extract parameter name and transformed value
         #_ variance
-        param_nam = "variance"
-        param_val = k.variance.numpy()
+        param_nam = "var"
+        param_val = k.variance.numpy().round(decimals=3)
         params.append(f"{param_nam}={param_val}")
         #_ lenghtscales
-        param_nam = "lengthscales"
-        param_val = k.lengthscales.numpy()
+        param_nam = "len"
+        param_val = k.lengthscales.numpy().round(decimals=3)
         params.append(f"{param_nam}={param_val}")
+        #_ alpha if so
+        if isinstance(k, gpflow.kernels.RationalQuadratic):
+            param_nam = "alpha"
+            param_val = k.alpha.numpy().round(decimals=3)
+            params.append(f"{param_nam}={param_val}")
         # Construct kernel initialization code
         kernel_name = type(k).__name__
-        return f"gpflow.kernels.{kernel_name}({', '.join(params)})"
+        return f"{kernel_name}({', '.join(params)})"
     # Start recursive kernel generation
     return kernel_to_code(kernel)
 
