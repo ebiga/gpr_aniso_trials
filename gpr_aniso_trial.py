@@ -24,6 +24,7 @@ from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
+from joblib import Parallel, delayed
 
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
@@ -323,6 +324,8 @@ elif method == 'gpr.gpflow':
         best_likelihud = float("inf")
         best_model = None
 
+        n_jobs = 4
+
         GRID_POINTS = 5
         NUM_REPEATS = 16
         NUM_RETRIES = 1
@@ -334,13 +337,12 @@ elif method == 'gpr.gpflow':
 
         stddev = 0.1
 
-        for iks in range(NUM_REPEATS):
-            print("iter ", iks)
+        def evaluate_trial(trial_idx):
+
+            # Define the kernel parameters
             vars = np.random.choice(variance_grid)
             lens = np.random.choice(lengthss_grid)
 
-
-            # Define the kernel parameters
             kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
             kernel.variance.prior = tfp.distributions.LogNormal(
                 tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
@@ -366,9 +368,7 @@ elif method == 'gpr.gpflow':
 
                 kernel = kernel + kkernel
             
-            msg = "   current kernel - init: " + str(generate_gpflow_kernel_code(kernel))
-            print(msg)
-
+            kernelinitlog = generate_gpflow_kernel_code(kernel)
 
             # Create the full GPR model
             for kop in range(NUM_RETRIES):
@@ -415,17 +415,22 @@ elif method == 'gpr.gpflow':
                 monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
                 opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True, step_callback=monitor)
 
-                msg = "   current kernel - rs " + str(kop) + ": " + str(generate_gpflow_kernel_code(model.kernel))
-                print(msg)
+            best_loss = model.log_marginal_likelihood().numpy()
 
+            print(f"Trial {trial_idx+1}/{NUM_REPEATS}")
+            print(f"  Kernel - init: {kernelinitlog}")
+            print(f"  Kernel - fine: {generate_gpflow_kernel_code(best_model.kernel)}")
+            print(f"     Avg CV Loss: {best_loss:.6f}")
 
-            likelihud = model.log_marginal_likelihood().numpy()
-            if likelihud < best_likelihud:
-                best_likelihud = likelihud
-                best_model = model
-                print("  we have a good one here: ", best_likelihud)
+            return best_loss, model
 
-        model = best_model
+        # Run trials in parallel
+        results = Parallel(n_jobs=n_jobs, verbose=1)(
+            delayed(evaluate_trial)(i) for i in range(NUM_REPEATS)
+        )
+
+        # Select the best model
+        _, model = min(results, key=lambda x: x[0])
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
