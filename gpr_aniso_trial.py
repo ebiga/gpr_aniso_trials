@@ -24,7 +24,7 @@ from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
-from sklearn.model_selection import ShuffleSplit
+from sklearn.model_selection import ShuffleSplit, KFold
 from joblib import Parallel, delayed
 
 gpflow.config.set_default_float('float64')
@@ -178,7 +178,7 @@ stddev = 0.1
 def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     opt = gpflow.optimizers.Scipy()
 
-    kf = ShuffleSplit(n_splits=k, test_size=0.25, random_state=42)
+    kf = KFold(n_splits=k)
 
     def evaluate_trial(trial_idx):
 
