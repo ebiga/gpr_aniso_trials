@@ -166,8 +166,10 @@ class SqueezeALayer(layers.Layer):
 
 
 # A KFold thingy going on
+if_fold = False
+
 GRID_POINTS = 5
-NUM_REPEATS = 16
+NUM_REPEATS = 6
 NUM_KERNELS = 2
 
 variance_grid = np.exp(np.linspace(np.log(3.0), np.log(9.0), GRID_POINTS))
@@ -177,10 +179,13 @@ scalings_grid = np.exp(np.linspace(np.log(0.05), np.log(0.5), GRID_POINTS))
 stddev = 0.1
 
 def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
+    # Prepare the infrastructure
     opt = gpflow.optimizers.Scipy()
-
     kf = KFold(n_splits=k)
 
+
+    # A function to run a single combination of the hyperparameter grids
+    #_ Option to run a KFold cross validation or direct "grid search"
     def evaluate_trial(trial_idx):
         rng = np.random.default_rng(42 + trial_idx)
 
@@ -218,39 +223,52 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
         # zero out the best selection
         best_loss = float("inf")
-        best_model = None
 
-        # Fold you, fold me
-        for train_index, val_index in kf.split(datas):
-            # Retrive the initial kernel otherwise it'll restart
-            kernel = copy.deepcopy(kernelinit)
 
-            # Get the fold
-            X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
-            y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
+        # Now get the thing done.
+        if if_fold:
+            # Fold you, fold me
+            for train_index, val_index in kf.split(datas):
+                # Retrive the initial kernel otherwise it'll restart
+                kernel = copy.deepcopy(kernelinit)
 
-            # Create the full GPR model
-            model = gpflow.models.GPR(data=(X_train, y_train), kernel=kernel, noise_variance=None)
+                # Get the fold
+                X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
+                y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
+
+                # Create the full GPR model
+                model = gpflow.models.GPR(data=(X_train, y_train), kernel=kernel, noise_variance=None)
+                model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+                gpflow.set_trainable(model.likelihood.variance, False)
+
+                # Optimize the full model
+                opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
+
+                # Predict and compute loss
+                y_pred, _ = model.posterior().predict_f(X_val)
+                loss = np.mean((y_val - y_pred.numpy())**2)
+
+                if loss < best_loss:
+                    best_loss = loss
+
+        else:
+            # Optimize over the full dataset. This is a basic grid search method.
+            model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
             model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
             gpflow.set_trainable(model.likelihood.variance, False)
 
-            # Optimize the full model
             opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
 
-            # Predict and compute loss
-            y_pred, _ = model.posterior().predict_f(X_val)
-            loss = np.mean((y_val - y_pred.numpy())**2)
+            best_loss = model.log_marginal_likelihood().numpy()
 
-            if loss < best_loss:
-                best_loss = loss
-                best_model = model
 
         print(f"Trial {trial_idx+1}/{n_trials}")
-        print(f"  Kernel - init: {kernelinitlog}")
-        print(f"  Kernel - fine: {generate_gpflow_kernel_code(best_model.kernel)}")
+        print(f"  Kernel - init: {generate_gpflow_kernel_code(kernelinit)}")
+        print(f"  Kernel - fine: {generate_gpflow_kernel_code(model.kernel)}")
         print(f"     Avg CV Loss: {best_loss:.6f}")
 
-        return best_loss, best_model
+        return best_loss, kernelinit, model
+
 
     # Run trials in parallel
     results = Parallel(n_jobs=n_jobs, verbose=1)(
@@ -258,7 +276,9 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     )
 
     # Select the best model
-    _, best_model = min(results, key=lambda x: x[0])
+    _, best_kernel, best_model = min(results, key=lambda x: x[0])
+    print(f"  Kernel _full_ - init: {generate_gpflow_kernel_code(best_kernel)}")
+
 
     return best_model
 
@@ -417,7 +437,7 @@ elif method == 'gpr.gpflow':
 
     if if_train_optim:
 
-        model = random_search_gpflow_ard(datas, dataf, k=5)
+        model = random_search_gpflow_ard(datas, dataf, k=5, n_jobs=6)
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
