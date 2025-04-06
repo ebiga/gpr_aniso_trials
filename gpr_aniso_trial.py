@@ -338,10 +338,12 @@ elif method == 'gpr.gpflow':
         stddev = 0.1
 
         def evaluate_trial(trial_idx):
+            rng = np.random.default_rng(42 + trial_idx)
 
             # Define the kernel parameters
-            vars = np.random.choice(variance_grid)
-            lens = np.random.choice(lengthss_grid)
+            vars = rng.choice(variance_grid)
+            lens = rng.choice(lengthss_grid)
+            facs = rng.choice(scalings_grid)
 
             kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
             kernel.variance.prior = tfp.distributions.LogNormal(
@@ -353,7 +355,6 @@ elif method == 'gpr.gpflow':
             gpflow.set_trainable(kernel.alpha, False)
 
             for otherks in range(NUM_KERNELS-1):
-                facs = np.random.choice(scalings_grid)
                 vars = facs**2 * vars
                 lens = facs * lens
 
