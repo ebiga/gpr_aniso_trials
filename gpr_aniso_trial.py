@@ -181,11 +181,11 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     kf = KFold(n_splits=k)
 
     def evaluate_trial(trial_idx):
+        rng = np.random.default_rng(42 + trial_idx)
 
         # Define the kernel parameters
-        vars = np.random.choice(variance_grid)
-        lens = np.random.choice(lengthss_grid)
-        facs = np.random.choice(scalings_grid)
+        vars = rng.choice(variance_grid)
+        lens = rng.choice(lengthss_grid)
 
         kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
         kernel.variance.prior = tfp.distributions.LogNormal(
@@ -197,7 +197,11 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
         gpflow.set_trainable(kernel.alpha, False)
 
         for otherks in range(NUM_KERNELS-1):
-            kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=(facs**2 * vars), lengthscales=(facs * lens))
+            facs = rng.choice(scalings_grid)
+            vars = facs**2 * vars
+            lens = facs * lens
+
+            kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
             kkernel.variance.prior = tfp.distributions.LogNormal(
                 tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
             )
