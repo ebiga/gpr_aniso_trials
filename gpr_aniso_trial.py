@@ -419,7 +419,7 @@ elif method == 'gpr.gpflow':
 
             print(f"Trial {trial_idx+1}/{NUM_REPEATS}")
             print(f"  Kernel - init: {kernelinitlog}")
-            print(f"  Kernel - fine: {generate_gpflow_kernel_code(best_model.kernel)}")
+            print(f"  Kernel - fine: {generate_gpflow_kernel_code(model.kernel)}")
             print(f"     Avg CV Loss: {best_loss:.6f}")
 
             return best_loss, model
