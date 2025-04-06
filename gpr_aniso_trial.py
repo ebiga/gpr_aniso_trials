@@ -280,6 +280,14 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     print(f"  Kernel _full_ - init: {generate_gpflow_kernel_code(best_kernel)}")
 
 
+    # Optimize over the full dataset
+    if if_fold: 
+        best_model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=best_kernel, noise_variance=None)
+        best_model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+        gpflow.set_trainable(best_model.likelihood.variance, False)
+        opt.minimize(best_model.training_loss, variables=best_model.trainable_variables, options=gpflow_options, compile=True)
+
+
     return best_model
 
 
