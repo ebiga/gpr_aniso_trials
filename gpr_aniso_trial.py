@@ -1,3 +1,4 @@
+import copy
 import os
 import hjson
 import numpy as np
@@ -212,7 +213,8 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
             kernel = kernel + kkernel
 
-        kernelinitlog = generate_gpflow_kernel_code(kernel)
+        # Save the init kernel as deep copy otherwise tf will overwrite
+        kernelinit = copy.deepcopy(kernel)
 
         # zero out the best selection
         best_loss = float("inf")
@@ -220,6 +222,10 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
         # Fold you, fold me
         for train_index, val_index in kf.split(datas):
+            # Retrive the initial kernel otherwise it'll restart
+            kernel = copy.deepcopy(kernelinit)
+
+            # Get the fold
             X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
             y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
 
