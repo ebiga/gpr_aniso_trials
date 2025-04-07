@@ -157,6 +157,26 @@ class SqueezeALayer(layers.Layer):
         return tf.squeeze(x, axis=1)
 
 
+# Hiii I'm Adam
+learning_rate = 0.01
+max_iter = 1000
+tol = 1e-6
+patience = 10  # Optional: stop if no improvement after N steps
+
+# Optimizer
+adam_opt = tf.optimizers.Adam(learning_rate)
+
+# Tracking
+best_loss = float('inf')
+wait = 0
+
+@tf.function
+def optimization_step():
+    with tf.GradientTape() as tape:
+        loss = model.training_loss()
+    grads = tape.gradient(loss, model.trainable_variables)
+    adam_opt.apply_gradients(zip(grads, model.trainable_variables))
+    return loss
 
 
 
@@ -317,62 +337,27 @@ elif method == 'gpr.gpflow':
 
             kernel = kernel + kkernel
 
-        # Define the optimizer
-        opt = gpflow.optimizers.Scipy()
-
-        # Step 1: Make an initial guess with a reduced number of points
-        r_datas, r_dataf = reduce_point_cloud(datas.to_numpy(), dataf.to_numpy().reshape(-1,1), target_fraction=r_numberofpoints)
-        r_gpr = gpflow.models.GPR(data=(r_datas, r_dataf), kernel=kernel, noise_variance=None)
-        r_gpr.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(r_gpr.likelihood.variance, False)
-
-        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(r_gpr.training_loss()))] ))
-        opt.minimize(r_gpr.training_loss, variables=r_gpr.trainable_variables, options=gpflow_options, step_callback=monitor)
-
-        msg = "Training Kernel - initial condition: " + str(generate_gpflow_kernel_code(r_gpr.kernel))
-        print(msg)
-        flightlog.write(msg+'\n')
-
-        # Step 2: Use the optimized parameters as priors for the full model
-        varvar = 0.5
-        # Set priors
-        if not (isinstance(r_gpr.kernel, gpflow.kernels.Sum) or isinstance(r_gpr.kernel, gpflow.kernels.Product)):
-            # Single Kernel
-            optimized_variance = r_gpr.kernel.variance.numpy()
-            r_gpr.kernel.variance.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), varvar
-            )
-            optimized_lengthscales = r_gpr.kernel.lengthscales.numpy()
-            r_gpr.kernel.lengthscales.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), varvar
-            )
-
-            kernel = r_gpr.kernel
-        else:
-            # Multiple Kernels
-            for k, akernel in enumerate(r_gpr.kernel.kernels):
-                optimized_variance = akernel.variance.numpy()
-                akernel.variance.prior = tfp.distributions.LogNormal(
-                    tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), varvar
-                )
-                optimized_lengthscales = akernel.lengthscales.numpy()
-                akernel.lengthscales.prior = tfp.distributions.LogNormal(
-                    tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), varvar
-                )
-
-                if k == 0:
-                    kernel = akernel
-                else:
-                    kernel = kernel + akernel
-
         # Create the full GPR model
         model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
         model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
         gpflow.set_trainable(model.likelihood.variance, False)
 
         # Optimize the full model
-        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=monitor)
+        for step in range(max_iter):
+            loss = optimization_step().numpy()
+
+            if step % 100 == 0:
+                print(f"Step {step}, Loss: {loss:.6f}")
+
+            # Early stopping based on tolerance
+            if abs(best_loss - loss) < tol:
+                wait += 1
+                if wait >= patience:
+                    print(f"Early stopping at step {step} with loss {loss:.6f}")
+                    break
+            else:
+                wait = 0
+                best_loss = loss
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
