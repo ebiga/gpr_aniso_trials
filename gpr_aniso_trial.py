@@ -259,7 +259,10 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
             opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
 
-            best_loss = model.log_marginal_likelihood().numpy()
+            #best_loss = model.log_marginal_likelihood().numpy()
+
+            y_pred, _ = model.posterior().predict_f(staggeredpts)
+            best_loss = np.abs( np.sqrt(np.mean((y_pred.numpy())**2)) - total_data_loss )
 
 
         print(f"Trial {trial_idx+1}/{n_trials}")
@@ -400,6 +403,42 @@ for i, b in enumerate(brkpts):
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
     tests[b] = testso[b]/NormDlt[i] - NormMin[i]
 
+# We need a cell centered grid to evaluate the rms
+if select_dimension == '3D':
+    print('')
+
+    # Xc = 0.125 * (
+    #     XXX[:-1, :-1, :-1] + XXX[1:, :-1, :-1] + XXX[:-1, 1:, :-1] + XXX[:-1, :-1, 1:] +
+    #     XXX[1:, 1:, :-1] + XXX[1:, :-1, 1:] + XXX[:-1, 1:, 1:] + XXX[1:, 1:, 1:]
+    # )
+    # Yc = 0.125 * (
+    #     YYY[:-1, :-1, :-1] + YYY[1:, :-1, :-1] + YYY[:-1, 1:, :-1] + YYY[:-1, :-1, 1:] +
+    #     YYY[1:, 1:, :-1] + YYY[1:, :-1, 1:] + YYY[:-1, 1:, 1:] + YYY[1:, 1:, 1:]
+    # )
+    # Zc = 0.125 * (
+    #     ZZZ[:-1, :-1, :-1] + ZZZ[1:, :-1, :-1] + ZZZ[:-1, 1:, :-1] + ZZZ[:-1, :-1, 1:] +
+    #     ZZZ[1:, 1:, :-1] + ZZZ[1:, :-1, 1:] + ZZZ[:-1, 1:, 1:] + ZZZ[1:, 1:, 1:]
+    # )
+
+    # staggered_points = np.c_[Xc.ravel(), Yc.ravel(), Zc.ravel()]
+
+elif select_dimension == '2D':
+    XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
+    YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
+
+    XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
+
+    Xc = 0.25 * (
+        XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:]
+    )
+    Yc = 0.25 * (
+        YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:]
+    )
+
+    staggeredpts = np.c_[Xc.ravel(), Yc.ravel()]
+
+    total_data_loss = np.sqrt(np.mean((dataf.to_numpy())**2))
+    print(total_data_loss)
 
 
 
