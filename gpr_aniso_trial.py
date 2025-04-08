@@ -166,22 +166,19 @@ class SqueezeALayer(layers.Layer):
 
 
 # A KFold thingy going on
-if_fold = False
-
 GRID_POINTS = 5
-NUM_REPEATS = 6
+NUM_REPEATS = 1
 NUM_KERNELS = 2
 
 variance_grid = np.exp(np.linspace(np.log(3.0), np.log(9.0), GRID_POINTS))
 lengthss_grid = np.exp(np.linspace(np.log(4.0), np.log(8.0), GRID_POINTS))
-scalings_grid = np.exp(np.linspace(np.log(0.05), np.log(0.5), GRID_POINTS))
+scalings_grid = np.exp(np.linspace(np.log(0.05), np.log(0.25), GRID_POINTS))
 
 stddev = 0.1
 
 def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     # Prepare the infrastructure
     opt = gpflow.optimizers.Scipy()
-    kf = KFold(n_splits=k)
 
 
     # A function to run a single combination of the hyperparameter grids
@@ -218,59 +215,23 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
             kernel = kernel + kkernel
 
-        # Save the init kernel as deep copy otherwise tf will overwrite
-        kernelinit = copy.deepcopy(kernel)
+        # Optimize over the full dataset. This is a basic grid search method.
+        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
+        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+        gpflow.set_trainable(model.likelihood.variance, False)
 
-        # zero out the best selection
-        best_loss = float("inf")
+        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
 
-
-        # Now get the thing done.
-        if if_fold:
-            # Fold you, fold me
-            for train_index, val_index in kf.split(datas):
-                # Retrive the initial kernel otherwise it'll restart
-                kernel = copy.deepcopy(kernelinit)
-
-                # Get the fold
-                X_train, X_val = datas.iloc[train_index].to_numpy(), datas.iloc[val_index].to_numpy()
-                y_train, y_val = dataf.iloc[train_index].to_numpy().reshape(-1, 1), dataf.iloc[val_index].to_numpy().reshape(-1, 1)
-
-                # Create the full GPR model
-                model = gpflow.models.GPR(data=(X_train, y_train), kernel=kernel, noise_variance=None)
-                model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-                gpflow.set_trainable(model.likelihood.variance, False)
-
-                # Optimize the full model
-                opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
-
-                # Predict and compute loss
-                y_pred, _ = model.posterior().predict_f(X_val)
-                loss = np.mean((y_val - y_pred.numpy())**2)
-
-                if loss < best_loss:
-                    best_loss = loss
-
-        else:
-            # Optimize over the full dataset. This is a basic grid search method.
-            model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
-            model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-            gpflow.set_trainable(model.likelihood.variance, False)
-
-            opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
-
-            #best_loss = model.log_marginal_likelihood().numpy()
-
-            y_pred, _ = model.posterior().predict_f(staggeredpts)
-            best_loss = np.abs( np.sqrt(np.mean((y_pred.numpy())**2)) - total_data_loss )
+        # Estimate the rms at the staggered mesh
+        y_pred, _ = model.posterior().predict_f(staggeredpts)
+        loss = np.sqrt(np.mean((y_pred.numpy() - staggeredfun)**2))
 
 
         print(f"Trial {trial_idx+1}/{n_trials}")
-        print(f"  Kernel - init: {generate_gpflow_kernel_code(kernelinit)}")
         print(f"  Kernel - fine: {generate_gpflow_kernel_code(model.kernel)}")
-        print(f"     Avg CV Loss: {best_loss:.6f}")
+        print(f"     Avg CV Loss: {loss:.6f}")
 
-        return best_loss, kernelinit, model
+        return loss, model
 
 
     # Run trials in parallel
@@ -279,16 +240,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     )
 
     # Select the best model
-    _, best_kernel, best_model = min(results, key=lambda x: x[0])
-    print(f"  Kernel _full_ - init: {generate_gpflow_kernel_code(best_kernel)}")
-
-
-    # Optimize over the full dataset
-    if if_fold: 
-        best_model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=best_kernel, noise_variance=None)
-        best_model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(best_model.likelihood.variance, False)
-        opt.minimize(best_model.training_loss, variables=best_model.trainable_variables, options=gpflow_options, compile=True)
+    _, best_model = min(results, key=lambda x: x[0])
 
 
     return best_model
@@ -423,22 +375,20 @@ if select_dimension == '3D':
     # staggered_points = np.c_[Xc.ravel(), Yc.ravel(), Zc.ravel()]
 
 elif select_dimension == '2D':
+
     XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
     YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
-
     XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
 
-    Xc = 0.25 * (
-        XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:]
-    )
-    Yc = 0.25 * (
-        YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:]
-    )
+    Xc = 0.25*( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] )
+    Yc = 0.25*( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] )
+
+    DDD = dataf.to_numpy().reshape(len(XX), len(YY))
+
+    Dc = 0.25*( DDD[:-1, :-1] + DDD[1:, :-1] + DDD[:-1, 1:] + DDD[1:, 1:] )
 
     staggeredpts = np.c_[Xc.ravel(), Yc.ravel()]
-
-    total_data_loss = np.sqrt(np.mean((dataf.to_numpy())**2))
-    print(total_data_loss)
+    staggeredfun = Dc.reshape(-1,1)
 
 
 
