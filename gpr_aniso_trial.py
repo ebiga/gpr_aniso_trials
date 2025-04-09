@@ -3,6 +3,7 @@ import os
 import hjson
 import numpy as np
 import pandas as pd
+import scipy.optimize
 import sklearn
 import silence_tensorflow.auto
 import gpflow
@@ -183,12 +184,11 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
 
     # A function to run a single combination of the hyperparameter grids
     #_ Option to run a KFold cross validation or direct "grid search"
-    def evaluate_trial(trial_idx):
-        rng = np.random.default_rng(42 + trial_idx)
+    def evaluate_trial(x):
 
         # Define the kernel parameters
-        vars = rng.choice(variance_grid)
-        lens = rng.choice(lengthss_grid)
+        vars = x[0]
+        lens = x[1]
 
         kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
         kernel.variance.prior = tfp.distributions.LogNormal(
@@ -200,9 +200,8 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
         gpflow.set_trainable(kernel.alpha, False)
 
         for otherks in range(NUM_KERNELS-1):
-            facs = rng.choice(scalings_grid)
-            vars = facs**2 * vars
-            lens = facs * lens
+            vars = x[2]
+            lens = x[3]
 
             kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
             kkernel.variance.prior = tfp.distributions.LogNormal(
@@ -220,30 +219,22 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
         model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
         gpflow.set_trainable(model.likelihood.variance, False)
 
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
+        ###opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
 
         # Estimate the rms at the staggered mesh
         y_pred, _ = model.posterior().predict_f(staggeredpts)
         loss = np.sqrt(np.mean((y_pred.numpy() - staggeredfun)**2))
 
-
-        print(f"Trial {trial_idx+1}/{n_trials}")
-        print(f"  Kernel - fine: {generate_gpflow_kernel_code(model.kernel)}")
-        print(f"     Avg CV Loss: {loss:.6f}")
-
-        return loss, model
+        return loss
 
 
-    # Run trials in parallel
-    results = Parallel(n_jobs=n_jobs, verbose=1)(
-        delayed(evaluate_trial)(i) for i in range(n_trials)
-    )
+    # Optimizesss
+    res = scipy.optimize.minimize(evaluate_trial, (5.458, 1.957, 0.01, 1.5), method='L-BFGS-B', jac='2-point', bounds=((3.,8.),(1.,5.),(0.01,0.1),(1.,5.)), options=gpflow_options)
 
-    # Select the best model
-    _, best_model = min(results, key=lambda x: x[0])
+    print('oi')
 
 
-    return best_model
+    return res
 
 
 
