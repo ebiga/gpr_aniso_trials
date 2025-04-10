@@ -167,17 +167,11 @@ class SqueezeALayer(layers.Layer):
 
 
 # A KFold thingy going on
-GRID_POINTS = 5
-NUM_REPEATS = 1
 NUM_KERNELS = 2
-
-variance_grid = np.exp(np.linspace(np.log(3.0), np.log(9.0), GRID_POINTS))
-lengthss_grid = np.exp(np.linspace(np.log(4.0), np.log(8.0), GRID_POINTS))
-scalings_grid = np.exp(np.linspace(np.log(0.05), np.log(0.25), GRID_POINTS))
 
 stddev = 0.1
 
-def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
+def random_search_gpflow_ard(datas, dataf):
     # Prepare the infrastructure
     opt = gpflow.optimizers.Scipy()
 
@@ -213,6 +207,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
             gpflow.set_trainable(kkernel.alpha, False)
 
             kernel = kernel + kkernel
+            del kkernel
 
         # Optimize over the full dataset. This is a basic grid search method.
         model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
@@ -425,7 +420,7 @@ elif method == 'gpr.gpflow':
 
     if if_train_optim:
 
-        model = random_search_gpflow_ard(datas, dataf, k=5, n_jobs=6)
+        model = random_search_gpflow_ard(datas, dataf)
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
