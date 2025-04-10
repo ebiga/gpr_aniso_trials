@@ -374,7 +374,15 @@ elif select_dimension == '2D':
     Dc = 0.25*( DDD[:-1, :-1] + DDD[1:, :-1] + DDD[:-1, 1:] + DDD[1:, 1:] )
 
     staggeredpts = np.c_[Xc.ravel(), Yc.ravel()]
-    staggeredfun = Dc.reshape(-1,1)
+    staggeredfun = Dc.reshape(-1)
+    print(f"Staggered: {np.mean(staggeredfun**2)}")
+    print(f"Training: {np.mean(dataf.to_numpy()**2)}")
+
+    staggeredpts = np.concatenate((staggeredpts, datas.to_numpy()))
+    staggeredfun = np.concatenate((staggeredfun, dataf.to_numpy()))
+
+    refloss = np.mean(staggeredfun**2)
+    print(f"Combined: {refloss}")
 
 
 
