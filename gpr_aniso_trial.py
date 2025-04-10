@@ -226,10 +226,18 @@ def random_search_gpflow_ard(datas, dataf):
     # Optimizesss
     res = scipy.optimize.minimize(evaluate_trial, (5.458, 1.957, 0.01, 1.5), method='L-BFGS-B', jac='2-point', bounds=((3.,8.),(1.,5.),(0.01,0.1),(1.,5.)), options=gpflow_options)
 
-    print('oi')
+    # Assemble the final model
+    fkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=res.x[0], lengthscales=res.x[1])
+    for otherks in range(NUM_KERNELS-1):
+        ik = 2*(otherks+1)
+        kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=res.x[ik], lengthscales=res.x[ik+1])
+        fkernel = fkernel + kkernel
+        del kkernel
+    model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=fkernel, noise_variance=None)
+    model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+    gpflow.set_trainable(model.likelihood.variance, False)
 
-
-    return res
+    return model
 
 
 
