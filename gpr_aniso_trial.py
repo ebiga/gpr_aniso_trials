@@ -372,25 +372,19 @@ elif select_dimension == '2D':
 
     XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
     YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
-    XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
+    XXX, YYY = np.meshgrid(XX, YY)
 
     Xc = 0.25*( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] )
     Yc = 0.25*( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] )
 
-    DDD = dataf.to_numpy().reshape(len(XX), len(YY))
+    DDD = dataf.to_numpy().reshape(len(YY), len(XX))
 
     Dc = 0.25*( DDD[:-1, :-1] + DDD[1:, :-1] + DDD[:-1, 1:] + DDD[1:, 1:] )
 
     staggeredpts = np.c_[Xc.ravel(), Yc.ravel()]
     staggeredfun = Dc.reshape(-1)
-    print(f"Staggered: {np.mean(staggeredfun**2)}")
-    print(f"Training: {np.mean(dataf.to_numpy()**2)}")
 
-    staggeredpts = np.concatenate((staggeredpts, datas.to_numpy()))
-    staggeredfun = np.concatenate((staggeredfun, dataf.to_numpy()))
-
-    refloss = np.mean(staggeredfun**2)
-    print(f"Combined: {refloss}")
+    refloss_e = np.mean(dataf.to_numpy()**2)
 
 
 
