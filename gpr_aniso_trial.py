@@ -169,12 +169,16 @@ class SqueezeALayer(layers.Layer):
 # A KFold thingy going on
 NUM_KERNELS = 2
 
+alpha = 0.1
 stddev = 0.1
 
-def random_search_gpflow_ard(datas, dataf):
-    # Prepare the infrastructure
-    opt = gpflow.optimizers.Scipy()
+def get_me_a_kernel(alph, vars, lens):
+    # tempk = gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
+    # gpflow.set_trainable(tempk.alpha, False)
+    # return tempk
+    return gpflow.kernels.Matern12(variance=vars, lengthscales=lens)
 
+def random_search_gpflow_ard(datas, dataf):
 
     # A function to run a single combination of the hyperparameter grids
     #_ Option to run a KFold cross validation or direct "grid search"
@@ -183,31 +187,12 @@ def random_search_gpflow_ard(datas, dataf):
         # Define the kernel parameters
         vars = x[0]
         lens = x[1]
-
-        kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
-        kernel.variance.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
-        )
-        kernel.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
-        )
-        gpflow.set_trainable(kernel.alpha, False)
+        kernel = get_me_a_kernel(alpha, vars, lens)
 
         for otherks in range(NUM_KERNELS-1):
             vars = x[2]
             lens = x[3]
-
-            kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
-            kkernel.variance.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
-            )
-            kkernel.lengthscales.prior = tfp.distributions.LogNormal(
-                tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
-            )
-            gpflow.set_trainable(kkernel.alpha, False)
-
-            kernel = kernel + kkernel
-            del kkernel
+            kernel = kernel + get_me_a_kernel(alpha, vars, lens)
 
         # Optimize over the full dataset. This is a basic grid search method.
         model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
@@ -227,12 +212,11 @@ def random_search_gpflow_ard(datas, dataf):
     res = scipy.optimize.minimize(evaluate_trial, (5.458, 1.957, 0.01, 1.5), method='L-BFGS-B', jac='2-point', bounds=((3.,8.),(1.,5.),(0.01,0.1),(1.,5.)), options=gpflow_options)
 
     # Assemble the final model
-    fkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=res.x[0], lengthscales=res.x[1])
+    fkernel = get_me_a_kernel(alpha, res.x[0], res.x[1])
     for otherks in range(NUM_KERNELS-1):
         ik = 2*(otherks+1)
-        kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=res.x[ik], lengthscales=res.x[ik+1])
-        fkernel = fkernel + kkernel
-        del kkernel
+        fkernel = fkernel + get_me_a_kernel(alpha, res.x[ik], res.x[ik+1])
+
     model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=fkernel, noise_variance=None)
     model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
     gpflow.set_trainable(model.likelihood.variance, False)
