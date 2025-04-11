@@ -199,11 +199,16 @@ def random_search_gpflow_ard(datas, dataf):
         model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
         gpflow.set_trainable(model.likelihood.variance, False)
 
-        ###opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, compile=True)
+        # Estimate the loss metric at the staggered mesh
+        #_ energy loss
+        y_pred, _ = model.posterior().predict_f(datas.to_numpy())
+        loss_e = np.mean((y_pred.numpy().reshape(-1) - dataf.to_numpy())**2)
 
-        # Estimate the rms at the staggered mesh
+        #_ momentum loss
         y_pred, _ = model.posterior().predict_f(staggeredpts)
-        loss = np.sqrt(np.mean((y_pred.numpy() - staggeredfun)**2))
+        #loss_m = np.sum(np.maximum(y_pred.numpy().reshape(-1) - staggeredfun, 0.0))
+        loss_m = np.sum(np.abs(y_pred.numpy().reshape(-1) - staggeredfun))
+
 
         return loss
 
