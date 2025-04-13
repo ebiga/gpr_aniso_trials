@@ -361,19 +361,37 @@ elif select_dimension == '2D':
 
     XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
     YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
-    XXX, YYY = np.meshgrid(XX, YY)
+    XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
 
-    Xc = 0.25*( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] )
-    Yc = 0.25*( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] )
+    # staggering in param1 direction
+    vertexmesh_dir1_X = np.empty((2*NgridX - 1, NgridY))
+    vertexmesh_dir1_Y = np.empty_like(vertexmesh_dir1_X)
 
-    DDD = dataf.to_numpy().reshape(len(YY), len(XX))
+    vertexmesh_dir1_X[ ::2, :] = XXX
+    vertexmesh_dir1_Y[ ::2, :] = YYY
 
-    Dc = 0.25*( DDD[:-1, :-1] + DDD[1:, :-1] + DDD[:-1, 1:] + DDD[1:, 1:] )
+    vertexmesh_dir1_X[1::2, :] = 0.5 * (XXX[:-1,:] + XXX[1:,:])
+    vertexmesh_dir1_Y[1::2, :] = 0.5 * (YYY[:-1,:] + YYY[1:,:])
 
-    staggeredpts = np.c_[Xc.ravel(), Yc.ravel()]
-    staggeredfun = Dc.reshape(-1)
+    staggeredpts_dir1 = np.c_[vertexmesh_dir1_X.ravel(), vertexmesh_dir1_Y.ravel()]
 
-    refloss_e = np.mean(dataf.to_numpy()**2)
+    # staggering in param2 direction
+    vertexmesh_dir2_X = np.empty((NgridX, 2*NgridY - 1))
+    vertexmesh_dir2_Y = np.empty_like(vertexmesh_dir2_X)
+
+    vertexmesh_dir2_X[ :, ::2] = XXX
+    vertexmesh_dir2_Y[ :, ::2] = YYY
+
+    vertexmesh_dir2_X[ :,1::2] = 0.5 * (XXX[:,:-1] + XXX[:,1:])
+    vertexmesh_dir2_Y[ :,1::2] = 0.5 * (YYY[:,:-1] + YYY[:,1:])
+
+    staggeredpts_dir2 = np.c_[vertexmesh_dir2_X.ravel(), vertexmesh_dir2_Y.ravel()]
+
+    # store the gradients for the mesh points
+    DDD = dataf.to_numpy().reshape(NgridX, NgridY)
+
+    d2_dataf_d2X = (DDD[:-2, :  ] - 2 * DDD[1:-1,  :  ] + DDD[2:,  :])/(XXX[:-2,:  ] - XXX[2:, :])**2
+    d2_dataf_d2Y = (DDD[:  , :-2] - 2 * DDD[ :  , 1:-1] + DDD[ :, 2:])/(YYY[:  ,:-2] - YYY[ :,2:])**2
 
 
 
