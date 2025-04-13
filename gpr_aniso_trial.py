@@ -209,6 +209,8 @@ def random_search_gpflow_ard(datas, dataf):
         #loss_m = np.sum(np.maximum(y_pred.numpy().reshape(-1) - staggeredfun, 0.0))
         loss_m = np.sum(np.abs(y_pred.numpy().reshape(-1) - staggeredfun))
 
+        loss = loss_e + loss_m
+        print(x, loss_e, loss_m, loss)
 
         return loss
 
