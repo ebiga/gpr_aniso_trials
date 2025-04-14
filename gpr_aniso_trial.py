@@ -205,10 +205,22 @@ def random_search_gpflow_ard(datas, dataf):
         loss_e = np.mean((y_pred.numpy().reshape(-1) - dataf.to_numpy())**2)
 
         #_ momentum loss
-        y_pred, _ = model.posterior().predict_f(staggeredpts)
-        #loss_m = np.sum(np.maximum(y_pred.numpy().reshape(-1) - staggeredfun, 0.0))
-        loss_m = np.sum(np.abs(y_pred.numpy().reshape(-1) - staggeredfun))
+        y_pred_dir1, _ = model.posterior().predict_f(staggeredpts_dir1)
+        y_pred_vertexmesh_dir1 = y_pred_dir1.numpy().reshape(2*NgridX - 1, NgridY)
+        d2f_dx2 = (
+            y_pred_vertexmesh_dir1[centre_i-1, :] - 2 * y_pred_vertexmesh_dir1[centre_i, :] + y_pred_vertexmesh_dir1[centre_i+1, :]
+        ) / (vertexmesh_dir1_X[centre_i+1, :] - vertexmesh_dir1_X[centre_i-1, :])**2
 
+        y_pred_dir2, _ = model.posterior().predict_f(staggeredpts_dir2)
+        y_pred_vertexmesh_dir2 = y_pred_dir2.numpy().reshape(NgridX, 2*NgridY - 1)
+        d2f_dy2 = (
+            y_pred_vertexmesh_dir2[:, centre_j-1] - 2 * y_pred_vertexmesh_dir2[:, centre_j] + y_pred_vertexmesh_dir2[:, centre_j+1]
+        ) / (vertexmesh_dir2_Y[:, centre_j+1] - vertexmesh_dir2_Y[:, centre_j-1])**2
+        laplacian_pred = d2f_dx2[:, 1:-1] + d2f_dy2[1:-1, :]
+
+        loss_m = np.mean(np.abs(laplacian_pred - laplacian_dataf))
+
+        loss = loss_e + loss_m
 
         return loss
 
@@ -398,6 +410,10 @@ elif select_dimension == '2D':
     ) / (YYY[:  ,:-2] - YYY[ :,2:])**2
 
     laplacian_dataf = d2f_dx2[:, 1:-1] + d2f_dy2[1:-1, :]
+
+    # save the staggered mesh indices
+    centre_i = np.arange(2, 2*NgridX - 2, 2)
+    centre_j = np.arange(2, 2*NgridY - 2, 2)
 
 
 
