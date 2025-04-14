@@ -170,9 +170,8 @@ class SqueezeALayer(layers.Layer):
 NUM_KERNELS = 2
 
 alpha = 0.1
-stddev = 0.1
 
-def get_me_a_kernel(alph, vars, lens):
+def get_me_a_kernel(alph, lens, vars=1.):
     # tempk = gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
     # gpflow.set_trainable(tempk.alpha, False)
     # return tempk
@@ -185,14 +184,12 @@ def random_search_gpflow_ard(datas, dataf):
     def evaluate_trial(x):
 
         # Define the kernel parameters
-        vars = x[0]
-        lens = x[1]
-        kernel = get_me_a_kernel(alpha, vars, lens)
+        lens = x[0]
+        kernel = get_me_a_kernel(alpha, lens)
 
         for otherks in range(NUM_KERNELS-1):
-            vars = x[2]
-            lens = x[3]
-            kernel = kernel + get_me_a_kernel(alpha, vars, lens)
+            lens = x[1]
+            kernel = kernel + get_me_a_kernel(alpha, lens)
 
         # Optimize over the full dataset. This is a basic grid search method.
         model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
@@ -226,13 +223,14 @@ def random_search_gpflow_ard(datas, dataf):
 
 
     # Optimizesss
-    res = scipy.optimize.minimize(evaluate_trial, (5.458, 1.957, 0.01, 1.5), method='L-BFGS-B', jac='2-point', bounds=((3.,8.),(1.,5.),(0.01,0.1),(1.,5.)), options=gpflow_options)
+    bound = scipy.optimize.Bounds(0.01,240.)
+    inits = np.array([200 - 50*k for k in range(NUM_KERNELS)])
+    res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
-    fkernel = get_me_a_kernel(alpha, res.x[0], res.x[1])
+    fkernel = get_me_a_kernel(alpha, res.x[0])
     for otherks in range(NUM_KERNELS-1):
-        ik = 2*(otherks+1)
-        fkernel = fkernel + get_me_a_kernel(alpha, res.x[ik], res.x[ik+1])
+        fkernel = fkernel + get_me_a_kernel(alpha, res.x[otherks+1])
 
     model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=fkernel, noise_variance=None)
     model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
