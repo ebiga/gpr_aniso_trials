@@ -167,6 +167,7 @@ class SqueezeALayer(layers.Layer):
 
 # A KFold thingy going on
 NUM_KERNELS = 2
+bound = scipy.optimize.Bounds(0.01,10.)
 
 alpha = 0.1
 
@@ -223,8 +224,7 @@ def random_search_gpflow_ard(datas, dataf):
 
 
     # Optimizesss
-    bound = scipy.optimize.Bounds(0.01,240.)
-    inits = np.array([250*np.exp(-k) for k in range(NUM_KERNELS)])
+    inits = np.array([6*np.exp(-k) for k in range(NUM_KERNELS)])
     res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
