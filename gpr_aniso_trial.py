@@ -370,8 +370,8 @@ elif select_dimension == '2D':
     vertexmesh_dir1_X[ ::2, :] = XXX
     vertexmesh_dir1_Y[ ::2, :] = YYY
 
-    vertexmesh_dir1_X[1::2, :] = 0.5 * (XXX[:-1,:] + XXX[1:,:])
-    vertexmesh_dir1_Y[1::2, :] = 0.5 * (YYY[:-1,:] + YYY[1:,:])
+    vertexmesh_dir1_X[1::2, :] = 0.5 * (XXX[:-1, :] + XXX[1:, :])
+    vertexmesh_dir1_Y[1::2, :] = 0.5 * (YYY[:-1, :] + YYY[1:, :])
 
     staggeredpts_dir1 = np.c_[vertexmesh_dir1_X.ravel(), vertexmesh_dir1_Y.ravel()]
 
@@ -379,11 +379,11 @@ elif select_dimension == '2D':
     vertexmesh_dir2_X = np.empty((NgridX, 2*NgridY - 1))
     vertexmesh_dir2_Y = np.empty_like(vertexmesh_dir2_X)
 
-    vertexmesh_dir2_X[ :, ::2] = XXX
-    vertexmesh_dir2_Y[ :, ::2] = YYY
+    vertexmesh_dir2_X[:,  ::2] = XXX
+    vertexmesh_dir2_Y[:,  ::2] = YYY
 
-    vertexmesh_dir2_X[ :,1::2] = 0.5 * (XXX[:,:-1] + XXX[:,1:])
-    vertexmesh_dir2_Y[ :,1::2] = 0.5 * (YYY[:,:-1] + YYY[:,1:])
+    vertexmesh_dir2_X[:, 1::2] = 0.5 * (XXX[:, :-1] + XXX[:, 1:])
+    vertexmesh_dir2_Y[:, 1::2] = 0.5 * (YYY[:, :-1] + YYY[:, 1:])
 
     staggeredpts_dir2 = np.c_[vertexmesh_dir2_X.ravel(), vertexmesh_dir2_Y.ravel()]
 
