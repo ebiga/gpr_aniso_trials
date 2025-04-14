@@ -390,8 +390,14 @@ elif select_dimension == '2D':
     # store the gradients for the mesh points
     DDD = dataf.to_numpy().reshape(NgridX, NgridY)
 
-    d2_dataf_d2X = (DDD[:-2, :  ] - 2 * DDD[1:-1,  :  ] + DDD[2:,  :])/(XXX[:-2,:  ] - XXX[2:, :])**2
-    d2_dataf_d2Y = (DDD[:  , :-2] - 2 * DDD[ :  , 1:-1] + DDD[ :, 2:])/(YYY[:  ,:-2] - YYY[ :,2:])**2
+    d2f_dx2 = (
+        DDD[:-2, :  ] - 2 * DDD[1:-1,  :  ] + DDD[2:,  :]
+    ) / (XXX[:-2,:  ] - XXX[2:, :])**2
+    d2f_dy2 = (
+        DDD[:  , :-2] - 2 * DDD[ :  , 1:-1] + DDD[ :, 2:]
+    ) / (YYY[:  ,:-2] - YYY[ :,2:])**2
+
+    laplacian_dataf = d2f_dx2[:, 1:-1] + d2f_dy2[1:-1, :]
 
 
 
