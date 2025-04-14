@@ -1,4 +1,3 @@
-import copy
 import os
 import hjson
 import numpy as np
@@ -224,7 +223,7 @@ def random_search_gpflow_ard(datas, dataf):
 
     # Optimizesss
     bound = scipy.optimize.Bounds(0.01,240.)
-    inits = np.array([200 - 50*k for k in range(NUM_KERNELS)])
+    inits = np.array([250*np.exp(-k) for k in range(NUM_KERNELS)])
     res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
