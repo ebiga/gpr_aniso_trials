@@ -400,7 +400,7 @@ elif select_dimension == '2D':
     staggeredpts_dir2 = np.c_[vertexmesh_dir2_X.ravel(), vertexmesh_dir2_Y.ravel()]
 
     # store the gradients for the mesh points
-    DDD = dataf.to_numpy().reshape(NgridX, NgridY)
+    DDD = np.transpose(dataf.to_numpy().reshape(NgridY, NgridX))
 
     d2f_dx2 = (
         DDD[:-2, :  ] - 2 * DDD[1:-1,  :  ] + DDD[2:,  :]
