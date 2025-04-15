@@ -167,7 +167,7 @@ class SqueezeALayer(layers.Layer):
 
 # A KFold thingy going on
 NUM_KERNELS = 2
-bound = scipy.optimize.Bounds(0.01,10.)
+bound = scipy.optimize.Bounds(0.005,500.)
 
 alpha = 0.1
 
