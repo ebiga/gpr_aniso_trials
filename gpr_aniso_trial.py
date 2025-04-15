@@ -167,6 +167,7 @@ class SqueezeALayer(layers.Layer):
 
 # A KFold thingy going on
 NUM_KERNELS = 2
+IF_ARD = True
 bound = scipy.optimize.Bounds(0.005,500.)
 
 alpha = 0.1
@@ -184,11 +185,12 @@ def random_search_gpflow_ard(datas, dataf):
     def evaluate_trial(x):
 
         # Define the kernel parameters
-        lens = x[0]
+        lens = np.array([x[ilen] for ilen in range(IF_ARD * Ndimensions)])
         kernel = get_me_a_kernel(alpha, lens)
 
         for otherks in range(NUM_KERNELS-1):
-            lens = x[1]
+            iref = 2*(otherks+1)
+            lens = np.array([x[ilen+iref] for ilen in range(IF_ARD * Ndimensions)])
             kernel = kernel + get_me_a_kernel(alpha, lens)
 
         # Optimize over the full dataset. This is a basic grid search method.
@@ -226,9 +228,12 @@ def random_search_gpflow_ard(datas, dataf):
     res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
-    fkernel = get_me_a_kernel(alpha, res.x[0])
+    lens = np.array([res.x[ilen] for ilen in range(IF_ARD * Ndimensions)])
+    fkernel = get_me_a_kernel(alpha, lens)
     for otherks in range(NUM_KERNELS-1):
-        fkernel = fkernel + get_me_a_kernel(alpha, res.x[otherks+1])
+        iref = 2*(otherks+1)
+        lens = np.array([res.x[ilen+iref] for ilen in range(IF_ARD * Ndimensions)])
+        fkernel = fkernel + get_me_a_kernel(alpha, lens)
 
     model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=fkernel, noise_variance=None)
     model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
