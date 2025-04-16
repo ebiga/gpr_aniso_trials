@@ -702,6 +702,7 @@ for k, v in enumerate(param3_cases):
         plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
         plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
         plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
+        plt.plot([min(dataso['param1']), max(dataso['param1'])], [c[2], c[2]], 'k--', lw=0.25)
 
     plt.savefig(os.path.join(dafolder, 'the_contours_for_param3-'+str(v)+'.png'))
     plt.close()
@@ -711,7 +712,7 @@ for k, v in enumerate(param3_cases):
 if select_dimension == '3D':
     params_to_range = ['param3', 'param2']
 elif select_dimension == '2D':
-    params_to_range = ['param2']
+    params_to_range = ['param2', 'param1']
 
 for c in param1_param2_cases:
 
@@ -721,19 +722,28 @@ for c in param1_param2_cases:
         fig = plt.figure(figsize=(12, 10))
         ax = fig.add_subplot(111)
 
-        if pranged == 'param3':
-            psearch = 'param2'
-            cx = c[2]
-        elif pranged == 'param2':
-            psearch = 'param3'
-            cx = c[3]
+        if select_dimension == '3D':
+            # param1 is fixed
+            if pranged == 'param3':
+                psearch = 'param2'
+                cx = c[2]
+            elif pranged == 'param2':
+                psearch = 'param3'
+                cx = c[3]
+        elif select_dimension == '2D':
+            if pranged == 'param2':
+                psearch = 'param1'
+                cx = c[1]
+            elif pranged == 'param1':
+                psearch = 'param2'
+                cx = c[2]
 
         # get the closest points from the original "dimensional" data
         df = pd.DataFrame(dataso)
         if select_dimension == '3D':
             df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df[psearch] - cx)**2)
         else:
-            df['distance'] = np.abs(df['param1'] - c[1])
+            df['distance'] = np.abs(df[psearch] - cx)
         closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
 
         param_range = np.linspace( min(dataso[pranged]), max(dataso[pranged]), 333 )
@@ -743,17 +753,18 @@ for c in param1_param2_cases:
         FR = dataf[closest_points_index]
 
         # Fit the data to generate the plot
-        c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
         if select_dimension == '3D':
-            c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][psearch] ).item()
+            c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
+            c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][ psearch] ).item()
             fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; " + psearch + " "+str(round(c_paramx,3)), fontsize=14)
         else:
-            fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3)), fontsize=14)
+            c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][ psearch] ).item()
+            fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_paramx,3)), fontsize=14)
 
         # create the X dimension to be fitted
         Xo = pd.DataFrame( {col: [pd.NA] * len(param_range) for col in datas.columns} )
-        Xo['param1'] = c_param1
-        if select_dimension == '3D': Xo[psearch] = c_paramx
+        if select_dimension == '3D': Xo['param1'] = c_param1
+        Xo[psearch] = c_paramx
         Xo[pranged] = param_range
 
         X = Xo.copy()
