@@ -185,12 +185,12 @@ def random_search_gpflow_ard(datas, dataf):
     def evaluate_trial(x):
 
         # Define the kernel parameters
-        lens = np.array([x[ilen] for ilen in range(IF_ARD * Ndimensions)])
+        lens = np.array([x[ilen] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
         kernel = get_me_a_kernel(alpha, lens)
 
         for otherks in range(NUM_KERNELS-1):
             iref = 2*(otherks+1)
-            lens = np.array([x[ilen+iref] for ilen in range(IF_ARD * Ndimensions)])
+            lens = np.array([x[ilen+iref] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
             kernel = kernel + get_me_a_kernel(alpha, lens)
 
         # Optimize over the full dataset. This is a basic grid search method.
@@ -228,11 +228,11 @@ def random_search_gpflow_ard(datas, dataf):
     res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
-    lens = np.array([res.x[ilen] for ilen in range(IF_ARD * Ndimensions)])
+    lens = np.array([res.x[ilen] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
     fkernel = get_me_a_kernel(alpha, lens)
     for otherks in range(NUM_KERNELS-1):
         iref = 2*(otherks+1)
-        lens = np.array([res.x[ilen+iref] for ilen in range(IF_ARD * Ndimensions)])
+        lens = np.array([res.x[ilen+iref] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
         fkernel = fkernel + get_me_a_kernel(alpha, lens)
 
     model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=fkernel, noise_variance=None)
