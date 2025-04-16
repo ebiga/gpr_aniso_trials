@@ -173,6 +173,7 @@ bound = scipy.optimize.Bounds(0.005,500.)
 alpha = 0.1
 
 def get_me_a_kernel(alph, lens, vars=1.):
+    lens = lens[0] if not IF_ARD else lens
     # tempk = gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
     # gpflow.set_trainable(tempk.alpha, False)
     # return tempk
