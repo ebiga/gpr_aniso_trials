@@ -189,7 +189,7 @@ def random_search_gpflow_ard(datas, dataf):
         kernel = get_me_a_kernel(alpha, lens)
 
         for otherks in range(NUM_KERNELS-1):
-            iref = 2*(otherks+1)
+            iref = (1 + IF_ARD * (Ndimensions-1))*(otherks+1)
             lens = np.array([x[ilen+iref] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
             kernel = kernel + get_me_a_kernel(alpha, lens)
 
@@ -231,7 +231,7 @@ def random_search_gpflow_ard(datas, dataf):
     lens = np.array([res.x[ilen] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
     fkernel = get_me_a_kernel(alpha, lens)
     for otherks in range(NUM_KERNELS-1):
-        iref = 2*(otherks+1)
+        iref = (1 + IF_ARD * (Ndimensions-1))*(otherks+1)
         lens = np.array([res.x[ilen+iref] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
         fkernel = fkernel + get_me_a_kernel(alpha, lens)
 
