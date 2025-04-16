@@ -21,6 +21,7 @@ import seaborn as sns
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
+from matplotlib import cm
 from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
@@ -717,6 +718,58 @@ for k, v in enumerate(param3_cases):
         plt.plot([min(dataso['param1']), max(dataso['param1'])], [c[2], c[2]], 'k--', lw=0.25)
 
     plt.savefig(os.path.join(dafolder, 'the_contours_for_param3-'+str(v)+'.png'))
+    plt.close()
+
+
+# surfaces
+for k, v in enumerate(param3_cases):
+    fig = plt.figure(figsize=(12, 10))
+    fig.suptitle("Surface - param3 "+str(v), fontsize=14)
+    ax = fig.add_subplot(projection='3d')
+
+    # prepare the arrays
+    ngrid = 250
+
+    So = pd.DataFrame( {col: [pd.NA] * ngrid*ngrid for col in dataso.columns} )
+
+    X = np.linspace( min(dataso['param1']), max(dataso['param1']), ngrid )
+    Y = np.linspace( min(dataso['param2']), max(dataso['param2']), ngrid )
+
+    XX, YY = np.meshgrid(X, Y)
+
+    So['param1'] = XX.ravel()
+    So['param2'] = YY.ravel()
+
+    if select_dimension == '3D':
+        So['param3'] = v
+        filtered_indices = dataso[ np.round(dataso['param3'], decimals=6) == v].index
+    else:
+        filtered_indices = dataso.index
+
+    S = So.copy()
+    for i, b in enumerate(brkpts):
+        S[b] = So[b]/NormDlt[i] - NormMin[i]
+
+    Z2 = my_predicts(model, S.to_numpy()).reshape(ngrid, ngrid)
+
+    ax.plot_surface(XX, YY, Z2, cmap=cm.seismic, linewidth=0, alpha=0.5, antialiased=True, label="fitted")
+
+    # fetch the reference data
+    X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
+    Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
+
+    XX, YY = np.meshgrid(X, Y)
+
+    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
+
+    ax.scatter(XX, YY, Z1, s=4, lw=0.1, marker='o', label='ref')
+
+    ax.legend()
+
+    ax.set_xlabel('param1')
+    ax.set_ylabel('param2')
+
+    plt.savefig(os.path.join(dafolder, 'the_surface_for_param3-'+str(v)+'.png'))
     plt.close()
 
 
