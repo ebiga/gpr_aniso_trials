@@ -343,7 +343,12 @@ NgridX = len(np.unique( np.round(dataso['param1'], decimals=6) ))
 NgridY = len(np.unique( np.round(dataso['param2'], decimals=6) ))
 if select_dimension == '3D': NgridZ = len(np.unique( np.round(dataso['param3'], decimals=6) ))
 
-# We need a cell centered grid to evaluate the rms
+#_ mesh spacing
+DgridX = (max(datas['param1']) - min(datas['param1']))/NgridX
+DgridY = (max(datas['param2']) - min(datas['param2']))/NgridY
+if select_dimension == '3D': DgridY = (max(datas['param3']) - min(datas['param3']))/NgridZ
+
+
 if select_dimension == '3D':
     print('')
 
