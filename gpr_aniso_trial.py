@@ -346,8 +346,11 @@ if select_dimension == '3D': NgridZ = len(np.unique( np.round(dataso['param3'], 
 #_ mesh spacing
 DgridX = (max(datas['param1']) - min(datas['param1']))/NgridX
 DgridY = (max(datas['param2']) - min(datas['param2']))/NgridY
-if select_dimension == '3D': DgridY = (max(datas['param3']) - min(datas['param3']))/NgridZ
+VgridF = DgridX * DgridY
 
+if select_dimension == '3D':
+    DgridZ = (max(datas['param3']) - min(datas['param3']))/NgridZ
+    VgridF = DgridZ * VgridF
 
 if select_dimension == '3D':
     print('')
