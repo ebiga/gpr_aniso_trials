@@ -226,7 +226,7 @@ def random_search_gpflow_ard(datas, dataf):
 
 
     # Optimizesss
-    inits = np.array([6*np.exp(-k) for k in range(NUM_KERNELS)])
+    inits = np.array([0.5*np.exp(-k) for k in range(NUM_KERNELS) for count in range(1 + IF_ARD * (Ndimensions-1))])
     res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
