@@ -321,9 +321,15 @@ dataso = data_base.loc[filtin][brkpts].astype(np.float64)
 dataf  = data_base.loc[filtin][output].astype(np.float64)
 
 if select_dimension == '3D':
-    filtin = test_base.index
+    if if_negative_param2:
+        filtin = test_base.index
+    else:
+        filtin = test_base.loc[(test_base['param2'] >= 0)].index    
 elif select_dimension == '2D':
-    filtin = test_base.loc[test_base['param3'] == param3fix].index
+    if if_negative_param2:
+        filtin = test_base.loc[(test_base['param3'] == param3fix)].index
+    else:
+        filtin = test_base.loc[(test_base['param3'] == param3fix) & (test_base['param2'] >= 0)].index
 
 testso = test_base.loc[filtin][brkpts].astype(np.float64)
 testf  = test_base.loc[filtin][output].astype(np.float64)
