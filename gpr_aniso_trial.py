@@ -274,38 +274,19 @@ flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
 
 ### DATA POINTS
 
-# training data
-# in three different sizes
+# TRAINING data
+#_ in three different sizes
 if select_input_size == 'full':
     data_base = pd.read_csv('./input_f.csv')
-
-    NgridX = 141
-    NgridY = 66
-    NgridZ = 5
-
 elif select_input_size == 'mid':
     data_base = pd.read_csv('./input_m.csv')
-
-    NgridX = 36
-    NgridY = 66
-    NgridZ = 5
-
 elif select_input_size == 'small':
     data_base = pd.read_csv('./input_s.csv')
-
-    NgridX = 36
-    NgridY = 33
-    NgridZ = 5
-
 elif select_input_size == 'tiny':
     data_base = pd.read_csv('./input_t.csv')
 
-    NgridX = 18
-    NgridY = 16
-    NgridZ = 5
-
-# test data
-# extracted from the full case so only really meaningfull for the smaller cases
+# TEST data
+#_ extracted from the full case so only really meaningfull for the smaller cases
 test_base = pd.read_csv('./test.csv')
 
 # Define dimensions, breakpoints and output headers
@@ -321,7 +302,8 @@ else:
 brkpts = data_base.columns[:Ndimensions].to_numpy()
 output = data_base.columns[-1]
 
-# separate the data sets into breakpoints and outputs
+
+# Separate the data sets into breakpoints and outputs
 if select_dimension == '3D':
     filtin = data_base.index
 elif select_dimension == '2D':
@@ -338,7 +320,8 @@ elif select_dimension == '2D':
 testso = test_base.loc[filtin][brkpts].astype(np.float64)
 testf  = test_base.loc[filtin][output].astype(np.float64)
 
-# make the breakpoints nondimensional, in the range [-0.5, 0.5]
+
+# Make the breakpoints nondimensional, in the range [-0.5, 0.5]
 NormMin = np.full(Ndimensions, 0.)
 NormDlt = np.full(Ndimensions, 1.)
 
@@ -352,6 +335,13 @@ for i, b in enumerate(brkpts):
 
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
     tests[b] = testso[b]/NormDlt[i] - NormMin[i]
+
+
+# Determine and store mesh properties
+#_ number of points
+NgridX = len(np.unique( np.round(dataso['param1'], decimals=6) ))
+NgridY = len(np.unique( np.round(dataso['param2'], decimals=6) ))
+if select_dimension == '3D': NgridZ = len(np.unique( np.round(dataso['param3'], decimals=6) ))
 
 # We need a cell centered grid to evaluate the rms
 if select_dimension == '3D':
