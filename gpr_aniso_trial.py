@@ -169,20 +169,16 @@ class SqueezeALayer(layers.Layer):
 # A KFold thingy going on
 NUM_KERNELS = 2
 IF_ARD = True
-IF_ACTIVDIM = False
-bound = scipy.optimize.Bounds(0.002,20.)
+bound = scipy.optimize.Bounds(0.005,500.)
 
-alpha = 0.005
+alpha = 0.1
 
-def get_me_a_kernel(alph, lens, vars=1., actdim=False):
-    if not actdim: actdim=[k for k in range(Ndimensions)]
+def get_me_a_kernel(alph, lens, vars=1.):
     lens = lens[0] if not IF_ARD else lens
     # tempk = gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
     # gpflow.set_trainable(tempk.alpha, False)
     # return tempk
-    #return gpflow.kernels.Matern12(variance=vars, lengthscales=lens)
-    #return gpflow.kernels.Matern32(variance=vars, lengthscales=lens, active_dims=actdim)
-    return gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
+    return gpflow.kernels.Matern12(variance=vars, lengthscales=lens)
 
 def random_search_gpflow_ard(datas, dataf):
 
@@ -192,12 +188,12 @@ def random_search_gpflow_ard(datas, dataf):
 
         # Define the kernel parameters
         lens = np.array([x[ilen] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
-        kernel = get_me_a_kernel(alpha, lens, actdim=IF_ACTIVDIM*[0])
+        kernel = get_me_a_kernel(alpha, lens)
 
         for otherks in range(NUM_KERNELS-1):
             iref = (1 + IF_ARD * (Ndimensions-1))*(otherks+1)
             lens = np.array([x[ilen+iref] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
-            kernel = kernel + get_me_a_kernel(alpha, lens, actdim=IF_ACTIVDIM*[otherks+1])
+            kernel = kernel + get_me_a_kernel(alpha, lens)
 
         # Optimize over the full dataset. This is a basic grid search method.
         model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
@@ -225,22 +221,21 @@ def random_search_gpflow_ard(datas, dataf):
         loss_m = np.mean((VgridF*(laplacian_pred - laplacian_dataf))**2.)
 
         loss = loss_e + loss_m
-        print(x, loss_e, loss_m, loss)
 
         return loss
 
 
     # Optimizesss
-    inits = [0.02, 0.02, 0.05, 0.05] #np.array([6*np.exp(-k) for k in range(NUM_KERNELS)])
-    res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options) #L-BFGS-B #SLSQP
+    inits = np.array([6*np.exp(-k) for k in range(NUM_KERNELS)])
+    res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
     lens = np.array([res.x[ilen] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
-    fkernel = get_me_a_kernel(alpha, lens, actdim=IF_ACTIVDIM*[0])
+    fkernel = get_me_a_kernel(alpha, lens)
     for otherks in range(NUM_KERNELS-1):
         iref = (1 + IF_ARD * (Ndimensions-1))*(otherks+1)
         lens = np.array([res.x[ilen+iref] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
-        fkernel = fkernel + get_me_a_kernel(alpha, lens, actdim=IF_ACTIVDIM*[otherks+1])
+        fkernel = fkernel + get_me_a_kernel(alpha, lens)
 
     model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=fkernel, noise_variance=None)
     model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
@@ -326,15 +321,9 @@ dataso = data_base.loc[filtin][brkpts].astype(np.float64)
 dataf  = data_base.loc[filtin][output].astype(np.float64)
 
 if select_dimension == '3D':
-    if if_negative_param2:
-        filtin = test_base.index
-    else:
-        filtin = test_base.loc[(test_base['param2'] >= 0)].index    
+    filtin = test_base.index
 elif select_dimension == '2D':
-    if if_negative_param2:
-        filtin = test_base.loc[(test_base['param3'] == param3fix)].index
-    else:
-        filtin = test_base.loc[(test_base['param3'] == param3fix) & (test_base['param2'] >= 0)].index
+    filtin = test_base.loc[test_base['param3'] == param3fix].index
 
 testso = test_base.loc[filtin][brkpts].astype(np.float64)
 testf  = test_base.loc[filtin][output].astype(np.float64)
