@@ -170,20 +170,23 @@ class SqueezeALayer(layers.Layer):
 # A KFold thingy going on
 NUM_KERNELS = 2
 
-alpha = 0.1
+alpha = 0.5
 stddev = 0.1
 
 def get_me_a_kernel(alph, vars, lens):
     # tempk = gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
     # gpflow.set_trainable(tempk.alpha, False)
     # return tempk
-    return gpflow.kernels.Matern12(variance=vars, lengthscales=lens)
+    return gpflow.kernels.Matern32(variance=vars, lengthscales=lens)
+    #return gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
 def random_search_gpflow_ard(datas, dataf):
 
     # A function to run a single combination of the hyperparameter grids
     #_ Option to run a KFold cross validation or direct "grid search"
     def evaluate_trial(x):
+
+        x[0] = x[2] = 1.
 
         # Define the kernel parameters
         vars = x[0]
