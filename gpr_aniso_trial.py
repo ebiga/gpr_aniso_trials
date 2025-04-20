@@ -206,14 +206,14 @@ def random_search_gpflow_ard(datas, dataf):
         loss_e = np.mean((predf.numpy().reshape(-1) - dataf.to_numpy())**2)
 
         #_ momentum loss
-        predf_mesh = np.transpose(predf.numpy().reshape(NgridY, NgridX))
+        predf_mesh = np.transpose(predf.numpy().reshape(XXX.shape[::-1]))
 
         predf_staggered, _ = model.posterior().predict_f(staggeredpts)
         predf_staggeredmesh = predf_staggered.numpy().reshape(np.shape(vertexmesh_X))
         sattelf = predf_staggeredmesh[:-1,:-1] + predf_staggeredmesh[1:,1:] + predf_staggeredmesh[1:,:-1] + predf_staggeredmesh[:-1,1:]
-        laplacian_pred = (sattelf - 4 * predf_mesh[1:-1,1:-1]) / sattelf / (DstagX**2 + DstagY**2)
+        laplacian_pred = 2.*(sattelf - 4 * predf_mesh[1:-1,1:-1]) / sattelf   # factor of 2. because we are taking the half points (staggered)
 
-        loss_m = np.mean((VgridF*(laplacian_pred - laplacian_dataf))**2.)
+        loss_m = np.mean(((laplacian_pred - laplacian_dataf))**2.)
 
         loss = loss_e + loss_m
 
@@ -383,19 +383,17 @@ elif select_dimension == '2D':
     XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
 
     # staggered mesh
-    DstagX = 0.5*DgridX
-    DstagY = 0.5*DgridY
-
     vertexmesh_X = 0.25*( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] )
     vertexmesh_Y = 0.25*( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] )
 
     staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel()]
 
     # store the gradients for the mesh points
-    DDD = np.transpose(dataf.to_numpy().reshape(NgridY, NgridX))
+    #_ the factor 0.5 comes because we are taking diagonals
+    DDD = np.transpose(dataf.to_numpy().reshape(XXX.shape[::-1]))
 
     sattelf = DDD[:-2,:-2] + DDD[2:,2:] + DDD[2:,:-2] + DDD[:-2,2:]
-    laplacian_dataf = (sattelf - 4 * DDD[1:-1,1:-1]) / sattelf / (DgridX**2 + DgridY**2)
+    laplacian_dataf = 0.5*(sattelf - 4 * DDD[1:-1,1:-1]) / sattelf
 
 
 
