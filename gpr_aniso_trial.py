@@ -213,7 +213,7 @@ def random_search_gpflow_ard(datas, dataf):
         sattelf = predf_staggeredmesh[:-1,:-1] + predf_staggeredmesh[1:,1:] + predf_staggeredmesh[1:,:-1] + predf_staggeredmesh[:-1,1:]
         laplacian_pred = 2.*(sattelf - 4 * predf_mesh[1:-1,1:-1]) / sattelf   # factor of 2. because we are taking the half points (staggered)
 
-        loss_m = np.mean(((laplacian_pred - laplacian_dataf))**2.)
+        loss_m = np.mean((laplacian_pred - laplacian_dataf)**2.)
 
         loss = loss_e + loss_m
 
