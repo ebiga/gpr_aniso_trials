@@ -383,27 +383,31 @@ testso = test_base.loc[filtin][brkpts].astype(np.float64)
 testf  = test_base.loc[filtin][output].astype(np.float64)
 
 
-# Make the breakpoints nondimensional, in the range [-0.5, 0.5]
-NormMin = np.full(Ndimensions, 0.)
-NormDlt = np.full(Ndimensions, 1.)
-
+# Make the breakpoints nondimensional by unitary grid spacing
 datas = dataso.copy()
 tests = testso.copy()
 
+#_ number of points
+Ngrid = np.zeros(Ndimensions, dtype=int)
+for n, b in enumerate(brkpts):
+    Ngrid[n] = len(np.unique( np.round(dataso[b], decimals=6) ))
+
+#_ mesh spacing
+Dgrid = np.full(Ndimensions, 1.)
+for n, b in enumerate(brkpts):
+    Dgrid[n] = (np.max(dataso[b]) - np.min(dataso[b]))/(Ngrid[n] - 1)
+
+#_ nondimensionalisation
+NormMin = np.full(Ndimensions, 0.)
+NormDlt = np.full(Ndimensions, 1.)
+
 for i, b in enumerate(brkpts):
-    NormMini   = np.min(dataso[b])
-    NormDlt[i] = np.max(dataso[b]) - NormMini
-    NormMin[i] = NormMini/NormDlt[i] + 0.5
+    NormMini   = 0.5*(np.max(dataso[b]) - np.min(dataso[b])) + np.min(dataso[b])
+    NormDlt[i] = Dgrid[i]
+    NormMin[i] = NormMini/NormDlt[i]
 
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
     tests[b] = testso[b]/NormDlt[i] - NormMin[i]
-
-
-# Determine and store mesh properties
-#_ number of points
-NgridX = len(np.unique( np.round(dataso['param1'], decimals=6) ))
-NgridY = len(np.unique( np.round(dataso['param2'], decimals=6) ))
-if select_dimension == '3D': NgridZ = len(np.unique( np.round(dataso['param3'], decimals=6) ))
 
 
 
