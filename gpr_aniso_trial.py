@@ -360,12 +360,12 @@ NgridY = len(np.unique( np.round(dataso['param2'], decimals=6) ))
 if select_dimension == '3D': NgridZ = len(np.unique( np.round(dataso['param3'], decimals=6) ))
 
 #_ mesh spacing
-DgridX = (max(datas['param1']) - min(datas['param1']))/NgridX
-DgridY = (max(datas['param2']) - min(datas['param2']))/NgridY
+DgridX = (max(datas['param1']) - min(datas['param1']))/(NgridX-1)
+DgridY = (max(datas['param2']) - min(datas['param2']))/(NgridY-1)
 VgridF = DgridX * DgridY
 
 if select_dimension == '3D':
-    DgridZ = (max(datas['param3']) - min(datas['param3']))/NgridZ
+    DgridZ = (max(datas['param3']) - min(datas['param3']))/(NgridZ-1)
     VgridF = DgridZ * VgridF
 
 
