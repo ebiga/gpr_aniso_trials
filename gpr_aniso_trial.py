@@ -210,15 +210,15 @@ def random_search_gpflow_ard(datas, dataf):
 
         predf_dir1, _ = model.posterior().predict_f(staggeredpts_dir1)
         predf_dir1_vertexmesh = predf_dir1.numpy().reshape(np.shape(vertexmesh_dir1_X))
-        d2f_dx2 = ((predf_dir1_vertexmesh[:-1, :] + predf_dir1_vertexmesh[1:, :] - 2 * predf_mesh[1:-1, 1:-1])
-                /  (predf_dir1_vertexmesh[:-1, :] + predf_dir1_vertexmesh[1:, :])) / 0.25
+        d2predf_dx2 = ((predf_dir1_vertexmesh[:-1, :] + predf_dir1_vertexmesh[1:, :] - 2 * predf_mesh[1:-1, 1:-1])
+                    /  (predf_dir1_vertexmesh[:-1, :] + predf_dir1_vertexmesh[1:, :])) / 0.25
 
         predf_dir2, _ = model.posterior().predict_f(staggeredpts_dir2)
         predf_dir2_vertexmesh = predf_dir2.numpy().reshape(np.shape(vertexmesh_dir2_X))
-        d2f_dy2 = ((predf_dir2_vertexmesh[:, :-1] + predf_dir2_vertexmesh[:, 1:] - 2 * predf_mesh[1:-1, 1:-1])
-                /  (predf_dir2_vertexmesh[:, :-1] + predf_dir2_vertexmesh[:, 1:])) / 0.25
+        d2predf_dy2 = ((predf_dir2_vertexmesh[:, :-1] + predf_dir2_vertexmesh[:, 1:] - 2 * predf_mesh[1:-1, 1:-1])
+                    /  (predf_dir2_vertexmesh[:, :-1] + predf_dir2_vertexmesh[:, 1:])) / 0.25
 
-        laplacian_pred = np.abs(d2f_dx2) + np.abs(d2f_dy2)
+        laplacian_pred = np.abs(d2predf_dx2) + np.abs(d2predf_dy2)
 
         loss_m = np.mean((laplacian_pred - laplacian_dataf)**2.)
 
