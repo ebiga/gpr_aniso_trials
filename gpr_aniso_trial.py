@@ -206,21 +206,21 @@ def random_search_gpflow_ard(datas, dataf):
         loss_e = np.mean((predf.numpy().reshape(-1) - dataf.to_numpy())**2)
 
         #_ momentum loss
-        predf_mesh = np.transpose(predf.numpy().reshape(NgridY, NgridX))
+        predf_mesh = np.transpose(predf.numpy().reshape(XXX.shape[::-1]))
 
         predf_dir1, _ = model.posterior().predict_f(staggeredpts_dir1)
         predf_dir1_vertexmesh = predf_dir1.numpy().reshape(np.shape(vertexmesh_dir1_X))
         d2f_dx2 = ((predf_dir1_vertexmesh[:-1, :] + predf_dir1_vertexmesh[1:, :] - 2 * predf_mesh[1:-1, 1:-1])
-                /  (predf_dir1_vertexmesh[:-1, :] + predf_dir1_vertexmesh[1:, :])) / DstagX**2
+                /  (predf_dir1_vertexmesh[:-1, :] + predf_dir1_vertexmesh[1:, :])) / 0.25
 
         predf_dir2, _ = model.posterior().predict_f(staggeredpts_dir2)
         predf_dir2_vertexmesh = predf_dir2.numpy().reshape(np.shape(vertexmesh_dir2_X))
         d2f_dy2 = ((predf_dir2_vertexmesh[:, :-1] + predf_dir2_vertexmesh[:, 1:] - 2 * predf_mesh[1:-1, 1:-1])
-                /  (predf_dir2_vertexmesh[:, :-1] + predf_dir2_vertexmesh[:, 1:])) / DstagY**2
+                /  (predf_dir2_vertexmesh[:, :-1] + predf_dir2_vertexmesh[:, 1:])) / 0.25
 
         laplacian_pred = np.abs(d2f_dx2) + np.abs(d2f_dy2)
 
-        loss_m = np.mean((VgridF*(laplacian_pred - laplacian_dataf))**2.)
+        loss_m = np.mean((laplacian_pred - laplacian_dataf)**2.)
 
         loss = loss_e + loss_m
 
@@ -228,7 +228,7 @@ def random_search_gpflow_ard(datas, dataf):
 
 
     # Optimizesss
-    inits = np.array([0.5*np.exp(-k) for k in range(NUM_KERNELS) for count in range(1 + IF_ARD * (Ndimensions-1))])
+    inits = np.array([2*np.exp(-0.25*k) for k in range(NUM_KERNELS) for count in range(1 + IF_ARD * (Ndimensions-1))])
     res = scipy.optimize.minimize(evaluate_trial, inits, method='SLSQP', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
@@ -390,28 +390,22 @@ elif select_dimension == '2D':
     XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
 
     # staggering in param1 direction
-    NstagX = 2*NgridX - 1
-    DstagX = DgridX * NgridX / NstagX
-
     vertexmesh_dir1_X = 0.5 * (XXX[:-1, 1:-1] + XXX[1:, 1:-1])
     vertexmesh_dir1_Y = 0.5 * (YYY[:-1, 1:-1] + YYY[1:, 1:-1])
 
     staggeredpts_dir1 = np.c_[vertexmesh_dir1_X.ravel(), vertexmesh_dir1_Y.ravel()]
 
     # staggering in param2 direction
-    NstagY = 2*NgridY - 1
-    DstagY = DgridY * NgridY / NstagY
-
     vertexmesh_dir2_X = 0.5 * (XXX[1:-1, :-1] + XXX[1:-1, 1:])
     vertexmesh_dir2_Y = 0.5 * (YYY[1:-1, :-1] + YYY[1:-1, 1:])
 
     staggeredpts_dir2 = np.c_[vertexmesh_dir2_X.ravel(), vertexmesh_dir2_Y.ravel()]
 
     # store the gradients for the mesh points
-    DDD = np.transpose(dataf.to_numpy().reshape(NgridY, NgridX))
+    DDD = np.transpose(dataf.to_numpy().reshape(XXX.shape[::-1]))
 
-    d2f_dx2 = (DDD[:-2, :  ] - 2 * DDD[1:-1,  :  ] + DDD[2:,  :]) / (DDD[:-2, :  ] + DDD[2:,  :]) / DgridX**2
-    d2f_dy2 = (DDD[:  , :-2] - 2 * DDD[ :  , 1:-1] + DDD[ :, 2:]) / (DDD[:  , :-2] + DDD[ :, 2:]) / DgridY**2
+    d2f_dx2 = (DDD[:-2, :  ] - 2 * DDD[1:-1,  :  ] + DDD[2:,  :]) / (DDD[:-2, :  ] + DDD[2:,  :])
+    d2f_dy2 = (DDD[:  , :-2] - 2 * DDD[ :  , 1:-1] + DDD[ :, 2:]) / (DDD[:  , :-2] + DDD[ :, 2:])
 
     laplacian_dataf = np.abs(d2f_dx2[:, 1:-1]) + np.abs(d2f_dy2[1:-1, :])
 
