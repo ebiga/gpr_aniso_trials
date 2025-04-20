@@ -210,8 +210,14 @@ def random_search_gpflow_ard(datas, dataf):
 
         predf_staggered, _ = model.posterior().predict_f(staggeredpts)
         predf_staggeredmesh = predf_staggered.numpy().reshape(np.shape(vertexmesh_X))
-        sattelf = predf_staggeredmesh[:-1,:-1] + predf_staggeredmesh[1:,1:] + predf_staggeredmesh[1:,:-1] + predf_staggeredmesh[:-1,1:]
-        laplacian_pred = 2.*(sattelf - 4 * predf_mesh[1:-1,1:-1]) / sattelf   # factor of 2. because we are taking the half points (staggered)
+
+        # factor of 2. because we are ta1ing the half points (staggered)
+        dspredf_dD1s = (2.*(predf_staggeredmesh[1:  ,1:] + predf_staggeredmesh[ :-1,:-1] - 2 * predf_mesh[1:-1,1:-1])
+                         / (predf_staggeredmesh[1:  ,1:] + predf_staggeredmesh[ :-1,:-1]))
+        dspredf_dD2s = (2.*(predf_staggeredmesh[ :-1,1:] + predf_staggeredmesh[1:  ,:-1] - 2 * predf_mesh[1:-1,1:-1])
+                         / (predf_staggeredmesh[ :-1,1:] + predf_staggeredmesh[1:  ,:-1]))
+
+        laplacian_pred = np.abs(dspredf_dD1s) + np.abs(dspredf_dD2s)
 
         loss_m = np.mean((laplacian_pred - laplacian_dataf)**2.)
 
@@ -392,8 +398,10 @@ elif select_dimension == '2D':
     #_ the factor 0.5 comes because we are taking diagonals
     DDD = np.transpose(dataf.to_numpy().reshape(XXX.shape[::-1]))
 
-    sattelf = DDD[:-2,:-2] + DDD[2:,2:] + DDD[2:,:-2] + DDD[:-2,2:]
-    laplacian_dataf = 0.5*(sattelf - 4 * DDD[1:-1,1:-1]) / sattelf
+    dsf_dD1s = 0.5*(DDD[2:  ,2:] - 2 * DDD[1:-1,1:-1] + DDD[ :-2,:-2]) / (DDD[2:  ,2:] + DDD[ :-2,:-2])
+    dsf_dD2s = 0.5*(DDD[ :-2,2:] - 2 * DDD[1:-1,1:-1] + DDD[2:  ,:-2]) / (DDD[ :-2,2:] + DDD[2:  ,:-2])
+
+    laplacian_dataf = np.abs(dsf_dD1s) + np.abs(dsf_dD2s)
 
 
 
