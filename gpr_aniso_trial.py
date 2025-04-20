@@ -108,10 +108,8 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
 def check_mean(atest, mean, refd):
     delta = refd - mean
 
-    Ntotal = np.shape(delta)[0]
-
-    rms_check = np.sqrt( np.sum( delta**2. )/Ntotal )
-    mae_check = np.sum( np.abs(delta) )/Ntotal
+    rms_check = np.sqrt( np.mean( delta**2. ) )
+    mae_check = np.mean( np.abs(delta) )
     max_check = np.max( np.abs(delta) )
 
     msg = atest + " errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
