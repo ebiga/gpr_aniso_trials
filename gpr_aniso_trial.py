@@ -406,22 +406,21 @@ for i, b in enumerate(brkpts):
 
 # We need a vertex centered grid to evaluate the rms
 if select_dimension == '3D':
-    print('')
 
-    # Xc = 0.125 * (
-    #     XXX[:-1, :-1, :-1] + XXX[1:, :-1, :-1] + XXX[:-1, 1:, :-1] + XXX[:-1, :-1, 1:] +
-    #     XXX[1:, 1:, :-1] + XXX[1:, :-1, 1:] + XXX[:-1, 1:, 1:] + XXX[1:, 1:, 1:]
-    # )
-    # Yc = 0.125 * (
-    #     YYY[:-1, :-1, :-1] + YYY[1:, :-1, :-1] + YYY[:-1, 1:, :-1] + YYY[:-1, :-1, 1:] +
-    #     YYY[1:, 1:, :-1] + YYY[1:, :-1, 1:] + YYY[:-1, 1:, 1:] + YYY[1:, 1:, 1:]
-    # )
-    # Zc = 0.125 * (
-    #     ZZZ[:-1, :-1, :-1] + ZZZ[1:, :-1, :-1] + ZZZ[:-1, 1:, :-1] + ZZZ[:-1, :-1, 1:] +
-    #     ZZZ[1:, 1:, :-1] + ZZZ[1:, :-1, 1:] + ZZZ[:-1, 1:, 1:] + ZZZ[1:, 1:, 1:]
-    # )
+    XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
+    YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
+    ZZ = np.unique( np.round(dataso['param3'], decimals=6) )/NormDlt[2] - NormMin[2]
+    XXX, YYY, ZZZ = np.meshgrid(XX, YY, ZZ, indexing='ij')
 
-    # staggered_points = np.c_[Xc.ravel(), Yc.ravel(), Zc.ravel()]
+    # staggered mesh
+    vertexmesh_X = ( XXX[:-1, :-1, :-1] + XXX[1:, :-1, :-1] + XXX[:-1, 1:, :-1] + XXX[1:, 1:, :-1]
+                   + XXX[:-1, :-1,1:  ] + XXX[1:, :-1,1:  ] + XXX[:-1, 1:,1:  ] + XXX[1:, 1:,1:  ]) / 8
+    vertexmesh_Y = ( YYY[:-1, :-1, :-1] + YYY[1:, :-1, :-1] + YYY[:-1, 1:, :-1] + YYY[1:, 1:, :-1]
+                   + YYY[:-1, :-1,1:  ] + YYY[1:, :-1,1:  ] + YYY[:-1, 1:,1:  ] + YYY[1:, 1:,1:  ]) / 8
+    vertexmesh_Z = ( ZZZ[:-1, :-1, :-1] + ZZZ[1:, :-1, :-1] + ZZZ[:-1, 1:, :-1] + ZZZ[1:, 1:, :-1]
+                   + ZZZ[:-1, :-1,1:  ] + ZZZ[1:, :-1,1:  ] + ZZZ[:-1, 1:,1:  ] + ZZZ[1:, 1:,1:  ]) / 8
+
+    staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel(), vertexmesh_Z.ravel()]
 
 elif select_dimension == '2D':
 
