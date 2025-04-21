@@ -153,6 +153,14 @@ def compute_Laplacian(f_centre, f_corner):
         return np.abs(dsf_dD1s) + np.abs(dsf_dD2s)
 
 
+# Write predicts out
+def write_predicts_file(location, params_in, func_in, func_pred):
+    predfile = pd.DataFrame(params_in)
+    predfile['f'] = func_in
+    predfile['f_pred'] = func_pred
+    predfile.to_csv(os.path.join(location, 'test_data_out.csv'), index=False)
+
+
 # Compute the rms of the mean
 def check_mean(atest, mean, refd):
     delta = refd - mean
@@ -505,6 +513,7 @@ elif method == 'gpr.gpflow':
     meant = my_predicts(posterior_gpr, tests.to_numpy())
     flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
     flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
+    write_predicts_file(dafolder, testso, testf, meant)
 
 
 
