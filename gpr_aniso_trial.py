@@ -104,6 +104,18 @@ def reduce_point_cloud(X, Y, target_fraction=0.5):
     return X_reduced, Y_reduced
 
 
+# Reshape due to csv XY and my lovely IJ orders
+def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid):
+    # the csv comes in the reversed order of the IJ mesh grid
+    reversed_shape = goodguy_meshgrid.shape[::-1]
+
+    # the flattened array is reshaped into its mesh shape than tranposed to the IJ shape
+    if select_dimension == '3D':
+        return offending_array.reshape(reversed_shape).transpose(2, 1, 0)
+    else:
+        return offending_array.reshape(reversed_shape).transpose()
+
+
 # Compute the rms of the mean
 def check_mean(atest, mean, refd):
     delta = refd - mean
@@ -204,7 +216,7 @@ def random_search_gpflow_ard(datas, dataf):
         loss_e = np.mean((predf.numpy().reshape(-1) - dataf.to_numpy())**2)
 
         #_ momentum loss
-        predf_mesh = np.transpose(predf.numpy().reshape(XXX.shape[::-1]))
+        predf_mesh = reshape_flatarray_like_reference_meshgrid(predf.numpy(), XXX)
 
         predf_staggered, _ = model.posterior().predict_f(staggeredpts)
         predf_staggeredmesh = predf_staggered.numpy().reshape(np.shape(vertexmesh_X))
@@ -394,7 +406,7 @@ elif select_dimension == '2D':
 
     # store the gradients for the mesh points
     #_ the factor 0.5 comes because we are taking diagonals
-    DDD = np.transpose(dataf.to_numpy().reshape(XXX.shape[::-1]))
+    DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), XXX)
 
     dsf_dD1s = 0.5*(DDD[2:  ,2:] - 2 * DDD[1:-1,1:-1] + DDD[ :-2,:-2]) / (DDD[2:  ,2:] + DDD[ :-2,:-2])
     dsf_dD2s = 0.5*(DDD[ :-2,2:] - 2 * DDD[1:-1,1:-1] + DDD[2:  ,:-2]) / (DDD[ :-2,2:] + DDD[2:  ,:-2])
