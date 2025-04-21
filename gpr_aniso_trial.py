@@ -741,10 +741,10 @@ for k, v in enumerate(param3_cases):
     ax.set_ylabel('param2')
 
     if select_dimension == '3D':
-        pts_in_the_plot = param1_param2_cases[k]
+        pts_in_the_plot = [param1_param2_cases[k]]
     else:
         pts_in_the_plot = param1_param2_cases
-    for c in param1_param2_cases:
+    for c in pts_in_the_plot:
         plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
         plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
         plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
