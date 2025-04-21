@@ -867,7 +867,7 @@ fig, ax = plt.subplots(figsize=(8, 8))
 for i in range(num_points):
 
     if select_dimension == '3D':
-        color_index = int(4 * (testso.at[i, 'param3'] - param3_min)/param3_dlt)
+        color_index = int(4 * (testso.iloc[i]['param3'] - param3_min)/param3_dlt)
     else:
         color_index = 0
 
