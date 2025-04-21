@@ -116,6 +116,43 @@ def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid)
         return offending_array.reshape(reversed_shape).transpose()
 
 
+# Compute Laplacians for 2D and 3D, cell centred, for normal or staggered meshes
+def compute_Laplacian(f_centre, f_corner):
+
+    # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre
+    if f_centre is f_corner:
+        i_corner = 2
+        grid_spacing = 1.
+    else:
+        i_corner = 1
+        grid_spacing = 0.5
+
+    # Now to the Laplacians, shall we?
+    if select_dimension == '3D':
+        delta = 3. * grid_spacing**2
+
+        dsf_dD1s = ((f_corner[i_corner:  ,i_corner:  ,i_corner:  ] + f_corner[ :-i_corner, :-i_corner, :-i_corner] - 2 * f_centre[1:-1,1:-1,1:-1])
+                  / (f_corner[i_corner:  ,i_corner:  ,i_corner:  ] + f_corner[ :-i_corner, :-i_corner, :-i_corner])) / delta
+        dsf_dD2s = ((f_corner[ :-i_corner,i_corner:  ,i_corner:  ] + f_corner[i_corner:  , :-i_corner, :-i_corner] - 2 * f_centre[1:-1,1:-1,1:-1])
+                  / (f_corner[ :-i_corner,i_corner:  ,i_corner:  ] + f_corner[i_corner:  , :-i_corner, :-i_corner])) / delta
+        dsf_dD3s = ((f_corner[i_corner:  , :-i_corner,i_corner:  ] + f_corner[ :-i_corner,i_corner:  , :-i_corner] - 2 * f_centre[1:-1,1:-1,1:-1])
+                  / (f_corner[i_corner:  , :-i_corner,i_corner:  ] + f_corner[ :-i_corner,i_corner:  , :-i_corner])) / delta
+        dsf_dD4s = ((f_corner[i_corner:  ,i_corner:  , :-i_corner] + f_corner[ :-i_corner, :-i_corner,i_corner:  ] - 2 * f_centre[1:-1,1:-1,1:-1])
+                  / (f_corner[i_corner:  ,i_corner:  , :-i_corner] + f_corner[ :-i_corner, :-i_corner,i_corner:  ])) / delta
+
+        return np.abs(dsf_dD1s) + np.abs(dsf_dD2s) + np.abs(dsf_dD3s) + np.abs(dsf_dD4s)
+
+    else:
+        delta = 2. * grid_spacing**2
+
+        dsf_dD1s = ((f_corner[i_corner:  ,i_corner:] + f_corner[ :-i_corner,:-i_corner] - 2 * f_centre[1:-1,1:-1])
+                  / (f_corner[i_corner:  ,i_corner:] + f_corner[ :-i_corner,:-i_corner])) / delta
+        dsf_dD2s = ((f_corner[ :-i_corner,i_corner:] + f_corner[i_corner:  ,:-i_corner] - 2 * f_centre[1:-1,1:-1])
+                  / (f_corner[ :-i_corner,i_corner:] + f_corner[i_corner:  ,:-i_corner])) / delta
+
+        return np.abs(dsf_dD1s) + np.abs(dsf_dD2s)
+
+
 # Compute the rms of the mean
 def check_mean(atest, mean, refd):
     delta = refd - mean
@@ -221,13 +258,7 @@ def random_search_gpflow_ard(datas, dataf):
         predf_staggered, _ = model.posterior().predict_f(staggeredpts)
         predf_staggeredmesh = predf_staggered.numpy().reshape(np.shape(vertexmesh_X))
 
-        # factor of 2. because we are ta1ing the half points (staggered)
-        dspredf_dD1s = (2.*(predf_staggeredmesh[1:  ,1:] + predf_staggeredmesh[ :-1,:-1] - 2 * predf_mesh[1:-1,1:-1])
-                         / (predf_staggeredmesh[1:  ,1:] + predf_staggeredmesh[ :-1,:-1]))
-        dspredf_dD2s = (2.*(predf_staggeredmesh[ :-1,1:] + predf_staggeredmesh[1:  ,:-1] - 2 * predf_mesh[1:-1,1:-1])
-                         / (predf_staggeredmesh[ :-1,1:] + predf_staggeredmesh[1:  ,:-1]))
-
-        laplacian_pred = np.abs(dspredf_dD1s) + np.abs(dspredf_dD2s)
+        laplacian_pred = compute_Laplacian(predf_mesh, predf_staggeredmesh)
 
         loss_m = np.mean((laplacian_pred - laplacian_dataf)**2.)
 
@@ -399,20 +430,14 @@ elif select_dimension == '2D':
     XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
 
     # staggered mesh
-    vertexmesh_X = 0.25*( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] )
-    vertexmesh_Y = 0.25*( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] )
+    vertexmesh_X = ( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] ) / 4
+    vertexmesh_Y = ( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] ) / 4
 
     staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel()]
 
-    # store the gradients for the mesh points
-    #_ the factor 0.5 comes because we are taking diagonals
-    DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), XXX)
-
-    dsf_dD1s = 0.5*(DDD[2:  ,2:] - 2 * DDD[1:-1,1:-1] + DDD[ :-2,:-2]) / (DDD[2:  ,2:] + DDD[ :-2,:-2])
-    dsf_dD2s = 0.5*(DDD[ :-2,2:] - 2 * DDD[1:-1,1:-1] + DDD[2:  ,:-2]) / (DDD[ :-2,2:] + DDD[2:  ,:-2])
-
-    laplacian_dataf = np.abs(dsf_dD1s) + np.abs(dsf_dD2s)
-
+# Store the reference Laplacian metric
+DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), XXX)
+laplacian_dataf = compute_Laplacian(DDD, DDD)
 
 
 
