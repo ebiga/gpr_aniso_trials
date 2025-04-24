@@ -117,40 +117,53 @@ def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid)
 
 
 # Compute Laplacians for 2D and 3D, cell centred, for normal or staggered meshes
-def compute_Laplacian(f_centre, f_corner):
+#_ The Laplacians are computed along the diagonals, so we can have only one staggered mesh
+#_ It's never enough any effort to make life easier...
+def compute_Laplacian(f_orig, f_stag):
 
-    # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre
-    if f_centre is f_corner:
-        i_corner = 2
-        grid_spacing = 1.
+    grid_spacing = 1.
+
+    # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
+    #_ We compute the Laplacian with a 5-point stencil
+    if f_orig is not f_stag:
+        if select_dimension == '3D':
+            delta = 3. * grid_spacing**2.
+
+            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - f_stag[1:  ,1:  ,1:  ] - f_stag[ :-1, :-1, :-1]) / (3.*delta)
+            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - f_stag[ :-1,1:  ,1:  ] - f_stag[1:  , :-1, :-1]) / (3.*delta)
+            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - f_stag[1:  , :-1,1:  ] - f_stag[ :-1,1:  , :-1]) / (3.*delta)
+            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - f_stag[1:  ,1:  , :-1] - f_stag[ :-1, :-1,1:  ]) / (3.*delta)
+
+            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
+
+        else:
+            delta = 2. * grid_spacing**2.
+
+            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - f_stag[1:  ,1:] - f_stag[ :-1,:-1]) / (3.*delta)
+            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - f_stag[ :-1,1:] - f_stag[1:  ,:-1]) / (3.*delta)
+
+            return dsf_dD1s + dsf_dD2s
+
     else:
-        i_corner = 1
-        grid_spacing = 0.5
+        # This is the original training mesh processing, fstag = f_orig
+        #_ We apply a 3-point stencil to compute the Laplacian
+        if select_dimension == '3D':
+            delta = 3. * grid_spacing**2.
 
-    # Now to the Laplacians, shall we?
-    if select_dimension == '3D':
-        delta = 3. * grid_spacing**2
+            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - 2. * f_orig[1:-1,1:-1,1:-1]) / delta
 
-        dsf_dD1s = ((f_corner[i_corner:  ,i_corner:  ,i_corner:  ] + f_corner[ :-i_corner, :-i_corner, :-i_corner] - 2 * f_centre[1:-1,1:-1,1:-1])
-                  / (f_corner[i_corner:  ,i_corner:  ,i_corner:  ] + f_corner[ :-i_corner, :-i_corner, :-i_corner])) / delta
-        dsf_dD2s = ((f_corner[ :-i_corner,i_corner:  ,i_corner:  ] + f_corner[i_corner:  , :-i_corner, :-i_corner] - 2 * f_centre[1:-1,1:-1,1:-1])
-                  / (f_corner[ :-i_corner,i_corner:  ,i_corner:  ] + f_corner[i_corner:  , :-i_corner, :-i_corner])) / delta
-        dsf_dD3s = ((f_corner[i_corner:  , :-i_corner,i_corner:  ] + f_corner[ :-i_corner,i_corner:  , :-i_corner] - 2 * f_centre[1:-1,1:-1,1:-1])
-                  / (f_corner[i_corner:  , :-i_corner,i_corner:  ] + f_corner[ :-i_corner,i_corner:  , :-i_corner])) / delta
-        dsf_dD4s = ((f_corner[i_corner:  ,i_corner:  , :-i_corner] + f_corner[ :-i_corner, :-i_corner,i_corner:  ] - 2 * f_centre[1:-1,1:-1,1:-1])
-                  / (f_corner[i_corner:  ,i_corner:  , :-i_corner] + f_corner[ :-i_corner, :-i_corner,i_corner:  ])) / delta
+            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
 
-        return np.abs(dsf_dD1s) + np.abs(dsf_dD2s) + np.abs(dsf_dD3s) + np.abs(dsf_dD4s)
+        else:
+            delta = 2. * grid_spacing**2.
 
-    else:
-        delta = 2. * grid_spacing**2
+            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - 2. * f_orig[1:-1,1:-1]) / delta
+            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - 2. * f_orig[1:-1,1:-1]) / delta
 
-        dsf_dD1s = ((f_corner[i_corner:  ,i_corner:] + f_corner[ :-i_corner,:-i_corner] - 2 * f_centre[1:-1,1:-1])
-                  / (f_corner[i_corner:  ,i_corner:] + f_corner[ :-i_corner,:-i_corner])) / delta
-        dsf_dD2s = ((f_corner[ :-i_corner,i_corner:] + f_corner[i_corner:  ,:-i_corner] - 2 * f_centre[1:-1,1:-1])
-                  / (f_corner[ :-i_corner,i_corner:] + f_corner[i_corner:  ,:-i_corner])) / delta
-
-        return np.abs(dsf_dD1s) + np.abs(dsf_dD2s)
+            return dsf_dD1s + dsf_dD2s
 
 
 # Write predicts out
