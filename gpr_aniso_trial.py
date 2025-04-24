@@ -679,6 +679,10 @@ for c in param1_param2_cases:
         plt.savefig(os.path.join(dafolder, 'the_plot_for_'+str(c_name)+'_vs_'+pranged+'.png'))
         plt.close()
 
+        # save the dat file
+        Xo['predf'] = Y1
+        Xo.to_csv(os.path.join(dafolder, str(c_name)+'_vs_'+pranged+'.csv'), index=False)
+
 
 # 1:1 expected vs. fitted
 num_points = len(testf)
