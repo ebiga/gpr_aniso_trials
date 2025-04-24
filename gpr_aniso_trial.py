@@ -825,15 +825,16 @@ for k, v in enumerate(param3_cases):
     fig.suptitle("Laplacian - param3 "+str(v), fontsize=14)
     ax = fig.add_subplot(projection='3d')
 
-    param3_vals = np.unique(np.round(dataso['param3'], decimals=6))
-    k = np.where(np.isclose(param3_vals, v, atol=1e-6))[0][0] - 1 # subtracting 1 cause the laplacians only have interior points
+    if select_dimension == '3D':
+        param3_vals = np.unique(np.round(dataso['param3'], decimals=6))
+        k = np.where(np.isclose(param3_vals, v, atol=1e-6))[0][0] - 1 # subtracting 1 cause the laplacians only have interior points
 
     X = np.unique(np.round(dataso['param1'], decimals=6))
     Y = np.unique(np.round(dataso['param2'], decimals=6))
     XX, YY = np.meshgrid(X[1:-1], Y[1:-1], indexing='ij')
 
     # original mesh
-    Z1 = laplacian_dataf[:, :, k]
+    Z1 = laplacian_dataf[:, :, k] if laplacian_dataf.ndim == 3 else laplacian_dataf
 
     # staggered mesh
     predf = my_predicts(model, datas.to_numpy())
@@ -843,7 +844,7 @@ for k, v in enumerate(param3_cases):
     predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
 
     laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
-    Z2 = laplacian_predf[:, :, k]
+    Z2 = laplacian_predf[:, :, k] if laplacian_predf.ndim == 3 else laplacian_predf
 
     # aight
     ax.plot_surface(XX, YY, Z1, cmap=cm.binary, linewidth=0, alpha=0.5, antialiased=True, label="ref")
