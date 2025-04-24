@@ -121,11 +121,11 @@ def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid)
 #_ It's never enough any effort to make life easier...
 def compute_Laplacian(f_orig, f_stag):
 
-    grid_spacing = 1.
-
-    # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
-    #_ We compute the Laplacian with a 5-point stencil
     if f_orig is not f_stag:
+        # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
+        #_ We compute the Laplacian with a 5-point stencil
+        grid_spacing = 0.5
+
         if select_dimension == '3D':
             delta = 3. * grid_spacing**2.
 
@@ -147,6 +147,8 @@ def compute_Laplacian(f_orig, f_stag):
     else:
         # This is the original training mesh processing, fstag = f_orig
         #_ We apply a 3-point stencil to compute the Laplacian
+        grid_spacing = 1.
+
         if select_dimension == '3D':
             delta = 3. * grid_spacing**2.
 
