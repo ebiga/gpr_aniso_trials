@@ -819,6 +819,45 @@ for k, v in enumerate(param3_cases):
     plt.close()
 
 
+# surfaces - Laplacian
+for k, v in enumerate(param3_cases):
+    fig = plt.figure(figsize=(12, 10))
+    fig.suptitle("Laplacian - param3 "+str(v), fontsize=14)
+    ax = fig.add_subplot(projection='3d')
+
+    param3_vals = np.unique(np.round(dataso['param3'], decimals=6))
+    k = np.where(np.isclose(param3_vals, v, atol=1e-6))[0][0] - 1 # subtracting 1 cause the laplacians only have interior points
+
+    X = np.unique(np.round(dataso['param1'], decimals=6))
+    Y = np.unique(np.round(dataso['param2'], decimals=6))
+    XX, YY = np.meshgrid(X[1:-1], Y[1:-1], indexing='ij')
+
+    # original mesh
+    Z1 = laplacian_dataf[:, :, k]
+
+    # staggered mesh
+    predf = my_predicts(model, datas.to_numpy())
+    predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, XXX)
+
+    predf_staggered = my_predicts(model, staggeredpts)
+    predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
+
+    laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
+    Z2 = laplacian_predf[:, :, k]
+
+    # aight
+    ax.plot_surface(XX, YY, Z1, cmap=cm.binary, linewidth=0, alpha=0.5, antialiased=True, label="ref")
+    ax.plot_surface(XX, YY, Z2, cmap=cm.seismic, linewidth=0, alpha=0.5, antialiased=True, label="fitted")
+
+    ax.legend()
+
+    ax.set_xlabel('param1')
+    ax.set_ylabel('param2')
+
+    plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.png'))
+    plt.close()
+
+
 # X-Ys
 if select_dimension == '3D':
     params_to_range = ['param3', 'param2']
