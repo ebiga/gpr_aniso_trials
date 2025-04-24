@@ -850,7 +850,7 @@ for k, v in enumerate(param3_cases):
 
     # aight
     ax.plot_wireframe(XX, YY, np.log10(Z1), color='black', linewidth=0.4, label="ref")
-    ax.plot_surface(XX, YY, np.log10(Z2), cmap=cm.seismic, linewidth=0, alpha=0.6, antialiased=True, shade=False, label="fitted")
+    ax.plot_surface(XX, YY, np.log10(Z2), cmap=cm.spring, linewidth=0.4, alpha=0.7, antialiased=False, shade=True, label="fitted")
 
     ax.view_init(elev=20, azim=135)
     ax.legend()
