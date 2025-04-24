@@ -281,9 +281,9 @@ def random_search_gpflow_ard(datas, dataf):
         predf_staggered, _ = model.posterior().predict_f(staggeredpts)
         predf_staggeredmesh = predf_staggered.numpy().reshape(np.shape(vertexmesh_X))
 
-        laplacian_pred = compute_Laplacian(predf_mesh, predf_staggeredmesh)
+        laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
 
-        loss_m = np.mean((laplacian_pred - laplacian_dataf)**2.)
+        loss_m = np.mean((laplacian_predf - laplacian_dataf)**2.)
 
         loss = loss_e + loss_m
 
