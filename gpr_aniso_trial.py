@@ -810,8 +810,9 @@ for k, v in enumerate(param3_cases):
 
     Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
 
-    ax.scatter(XX, YY, Z1, s=4, lw=0.1, marker='o', label='ref')
+    ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="ref")
 
+    ax.view_init(elev=20, azim=135)
     ax.legend()
 
     ax.set_xlabel('param1')
@@ -849,15 +850,15 @@ for k, v in enumerate(param3_cases):
     Z2 = laplacian_predf[:, :, k] if laplacian_predf.ndim == 3 else laplacian_predf
 
     # aight
-    ax.plot_wireframe(XX, YY, np.log10(Z1), color='black', linewidth=0.4, label="ref")
-    ax.plot_surface(XX, YY, np.log10(Z2), cmap=cm.spring, linewidth=0.4, alpha=0.7, antialiased=False, shade=True, label="fitted")
+    ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="ref")
+    ax.plot_surface(XX, YY, Z2, cmap=cm.spring, linewidth=0.4, alpha=0.7, antialiased=False, shade=True, label="fitted")
 
     ax.view_init(elev=20, azim=135)
     ax.legend()
 
     ax.set_xlabel('param1')
     ax.set_ylabel('param2')
-    ax.set_zlabel('log(var1)')
+    ax.set_zlabel('Laplacian(var1)')
 
     plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.png'))
     plt.close()
