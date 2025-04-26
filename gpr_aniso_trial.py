@@ -285,7 +285,7 @@ def random_search_gpflow_ard(datas, dataf):
         # Estimate the loss metric at the staggered mesh
         #_ energy loss
         predf, _ = model.posterior().predict_f(datas.to_numpy())
-        loss_e = np.mean((predf.numpy().reshape(-1) - dataf.to_numpy())**2)
+        loss_e = np.sqrt(np.mean((predf.numpy().reshape(-1) - dataf.to_numpy())**2.))
 
         #_ momentum loss
         predf_mesh = reshape_flatarray_like_reference_meshgrid(predf.numpy(), XXX)
@@ -295,7 +295,7 @@ def random_search_gpflow_ard(datas, dataf):
 
         laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
 
-        loss_m = np.mean((laplacian_predf - laplacian_dataf)**2.)
+        loss_m = np.sqrt(np.mean((laplacian_predf - laplacian_dataf)**2.))
 
         loss = loss_e + loss_m
 
