@@ -761,7 +761,7 @@ for k, v in enumerate(param3_cases):
         Line2D([0], [0], color='black', linestyle='solid' , linewidth=1.0),
         Line2D([0], [0], color='black', linestyle='dashed', linewidth=0.5),
     ]
-    labels = ['ref', 'fitted']
+    labels = ['Reference', 'Fitted']
     plt.legend(lines, labels)
 
     ax.set_xlabel('param1')
@@ -812,7 +812,7 @@ for k, v in enumerate(param3_cases):
 
     Z2 = my_predicts(model, S.to_numpy()).reshape(ngrid, ngrid)
 
-    ax.plot_surface(XX, YY, Z2, cmap=cm.seismic, linewidth=0, alpha=0.5, antialiased=True, label="fitted")
+    ax.plot_surface(XX, YY, Z2, cmap=cm.seismic, linewidth=0, alpha=0.5, antialiased=True, label="Fitted")
 
     # fetch the reference data
     X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
@@ -822,7 +822,7 @@ for k, v in enumerate(param3_cases):
 
     Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
 
-    ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="ref")
+    ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="Reference")
 
     ax.view_init(elev=20, azim=135)
     ax.legend()
@@ -862,8 +862,8 @@ for k, v in enumerate(param3_cases):
     Z2 = laplacian_predf[:, :, k] if laplacian_predf.ndim == 3 else laplacian_predf
 
     # aight
-    ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="ref")
-    ax.plot_surface(XX, YY, Z2, cmap=cm.spring, linewidth=0.4, alpha=0.7, antialiased=False, shade=True, label="fitted")
+    ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="Reference")
+    ax.plot_surface(XX, YY, Z2, cmap=cm.spring, linewidth=0.4, alpha=0.7, antialiased=False, shade=True, label="Fitted")
 
     ax.view_init(elev=20, azim=135)
     ax.legend()
@@ -873,6 +873,45 @@ for k, v in enumerate(param3_cases):
     ax.set_zlabel('Laplacian(var1)')
 
     plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.png'))
+    plt.close()
+
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(f"Midline Laplacian Comparison (log scale) - param3 = {v}", fontsize=14)
+
+    # X-direction slice (mid param1)
+    mid_x = len(X[1:-1]) // 2
+    x_vals = Y[1:-1]
+    z1_x = Z1[mid_x, :]
+    z2_x = Z2[mid_x, :]
+    delta_x = np.abs(z1_x - z2_x)
+
+    axs[0].plot(x_vals, z1_x, label='Reference', color='black', linewidth=1)
+    axs[0].plot(x_vals, z2_x, label='Fitted', color='red', linestyle='--', linewidth=1)
+    axs[0].plot(x_vals, delta_x, label='|Δ|', color='blue', linestyle=':', linewidth=1)
+    axs[0].set_title('Slice along param2 (mid param1)')
+    axs[0].set_xlabel('param2')
+    axs[0].set_ylabel('Laplacian')
+    axs[0].legend()
+    axs[0].grid(True)
+
+    # Y-direction slice (mid param2)
+    mid_y = len(Y[1:-1]) // 2
+    y_vals = X[1:-1]
+    z1_y = Z1[:, mid_y]
+    z2_y = Z2[:, mid_y]
+    delta_y = np.abs(z1_y - z2_y)
+
+    axs[1].plot(y_vals, z1_y, label='Reference', color='black', linewidth=1)
+    axs[1].plot(y_vals, z2_y, label='Fitted', color='red', linestyle='--', linewidth=1)
+    axs[1].plot(y_vals, delta_y, label='|Δ|', color='blue', linestyle=':', linewidth=1)
+    axs[1].set_title('Slice along param1 (mid param2)')
+    axs[1].set_xlabel('param1')
+    axs[1].set_ylabel('Laplacian')
+    axs[1].legend()
+    axs[1].grid(True)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(os.path.join(dafolder, f"Laplacian_crosssection_param3-{v}.png"))
     plt.close()
 
 
@@ -942,8 +981,8 @@ for c in param1_param2_cases:
         Y1 = my_predicts(model, X.to_numpy())
 
         # plot
-        plt.plot(param_range, Y1.T, lw=0.5, label='fitted')
-        plt.scatter(XR, FR.T, lw=0.5, marker='o', label='ref')
+        plt.plot(param_range, Y1.T, lw=0.5, label='Fitted')
+        plt.scatter(XR, FR.T, lw=0.5, marker='o', label='Reference')
 
         ax.set_xlabel(pranged)
         ax.set_ylabel('var1')
