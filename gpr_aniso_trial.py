@@ -262,7 +262,7 @@ def get_me_a_kernel(alph, lens, vars=1.):
     # return tempk
     return gpflow.kernels.Matern12(variance=vars, lengthscales=lens)
 
-def random_search_gpflow_ard(datas, dataf):
+def minimise_training_laplacian(datas, dataf, histories):
 
     # A function to run a single combination of the hyperparameter grids
     #_ Option to run a KFold cross validation or direct "grid search"
@@ -298,6 +298,7 @@ def random_search_gpflow_ard(datas, dataf):
         loss_m = np.sqrt(np.mean((laplacian_predf - laplacian_dataf)**2.))
 
         loss = loss_e + loss_m
+        histories.append([np.log10(loss), np.log10(loss_e), np.log10(loss_m)])
 
         return loss
 
@@ -517,7 +518,7 @@ elif method == 'gpr.gpflow':
 
     if if_train_optim:
 
-        model = random_search_gpflow_ard(datas, dataf)
+        model = minimise_training_laplacian(datas, dataf, loss)
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
@@ -693,7 +694,7 @@ elif method == 'at.tf':
 
 # training convergence
 if if_train_optim:
-    plt.plot(np.array(loss), label='Training Loss')
+    plt.plot(np.array(loss)[:,0], label='Training Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Log(Loss)')
     plt.title('Loss Convergence')
