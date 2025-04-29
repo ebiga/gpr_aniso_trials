@@ -432,7 +432,7 @@ elif method == 'gpr.gpflow':
 
         # Optimize the full model
         monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=monitor)
+        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=monitor, compile=True)
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
         print(msg)
