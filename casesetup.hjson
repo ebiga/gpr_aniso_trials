@@ -27,7 +27,6 @@ scikit_setup:
 # GPR GPFlow options
 gpflow_setup:
 {
-    r_numberofpoints: 0.5 # ratio of number of points for a reduced-set initial condition
     optimiser:
     {
         maxiter: 1500,
