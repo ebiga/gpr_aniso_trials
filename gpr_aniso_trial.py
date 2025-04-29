@@ -20,6 +20,7 @@ import seaborn as sns
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
+from matplotlib import cm
 from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
@@ -47,62 +48,115 @@ def generate_gpflow_kernel_code(kernel):
         params = []
         # Extract parameter name and transformed value
         #_ variance
-        param_nam = "variance"
-        param_val = k.variance.numpy()
+        param_nam = "var"
+        param_val = k.variance.numpy().round(decimals=3)
         params.append(f"{param_nam}={param_val}")
         #_ lenghtscales
-        param_nam = "lengthscales"
-        param_val = k.lengthscales.numpy()
+        param_nam = "len"
+        param_val = k.lengthscales.numpy().round(decimals=3)
         params.append(f"{param_nam}={param_val}")
+        #_ alpha if so
+        if isinstance(k, gpflow.kernels.RationalQuadratic):
+            param_nam = "alpha"
+            param_val = k.alpha.numpy().round(decimals=3)
+            params.append(f"{param_nam}={param_val}")
         # Construct kernel initialization code
         kernel_name = type(k).__name__
-        return f"gpflow.kernels.{kernel_name}({', '.join(params)})"
+        return f"{kernel_name}({', '.join(params)})"
     # Start recursive kernel generation
     return kernel_to_code(kernel)
 
 
-# Dataset reduction for initial condition determination
-def reduce_point_cloud(X, Y, target_fraction=0.5):
-    """
-    - X: Input dataset (numpy array, shape [N, D]).
-    - Y: Target values (numpy array, shape [N, 1]).
-    - target_fraction: Desired fraction of the total dataset to retain.
-    """
-    num_points, num_dims = X.shape
+# Reshape due to csv XY and my lovely IJ orders
+def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid):
+    # the csv comes in the reversed order of the IJ mesh grid
+    reversed_shape = goodguy_meshgrid.shape[::-1]
 
-    # Compute the range of values for each dimension
-    # Sort dimensions by range (descending)
-    ranges = [np.ptp(X[:, i]) for i in range(num_dims)]
-    sorted_dims = np.argsort(ranges)[::-1]
+    # the flattened array is reshaped into its mesh shape than tranposed to the IJ shape
+    if select_dimension == '3D':
+        return offending_array.reshape(reversed_shape).transpose(2, 1, 0)
+    else:
+        return offending_array.reshape(reversed_shape).transpose()
 
-    # Determine the per-dimension reduction factor
-    # Keep the smallest dimension intact
-    dimensions_to_reduce = sorted_dims[:-1]
-    per_dim_reduction = target_fraction ** (1 / len(dimensions_to_reduce))
 
-    # Apply reduction logic
-    mask = np.ones(num_points, dtype=bool)
-    for dim in dimensions_to_reduce:
-        unique_vals = np.unique( np.round(X[:, dim], decimals=6) )
-        reduced_count = max(1, int(len(unique_vals) * per_dim_reduction))
-        reduced_vals = unique_vals[:: len(unique_vals) // reduced_count][:reduced_count]
-        mask &= np.isin(X[:, dim], reduced_vals)
+# Compute Laplacians for 2D and 3D, cell centred, for normal or staggered meshes
+#_ The Laplacians are computed along the diagonals, so we can have only one staggered mesh
+#_ It's never enough any effort to make life easier...
+def compute_Laplacian(f_orig, f_stag):
 
-    # Apply mask to reduce the dataset
-    X_reduced = X[mask]
-    Y_reduced = Y[mask]
+    if f_orig is not f_stag:
+        # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
+        #_ We compute the Laplacian with a 5-point stencil
+        grid_spacing = 0.5
 
-    return X_reduced, Y_reduced
+        if select_dimension == '3D':
+            delta = 3. * grid_spacing**2.
+
+            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - f_stag[1:  ,1:  ,1:  ] - f_stag[ :-1, :-1, :-1]) \
+                           / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + f_stag[1:  ,1:  ,1:  ] + f_stag[ :-1, :-1, :-1]) / (3.*delta)
+            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - f_stag[ :-1,1:  ,1:  ] - f_stag[1:  , :-1, :-1]) \
+                           / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + f_stag[ :-1,1:  ,1:  ] + f_stag[1:  , :-1, :-1]) / (3.*delta)
+            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - f_stag[1:  , :-1,1:  ] - f_stag[ :-1,1:  , :-1]) \
+                           / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + f_stag[1:  , :-1,1:  ] + f_stag[ :-1,1:  , :-1]) / (3.*delta)
+            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - f_stag[1:  ,1:  , :-1] - f_stag[ :-1, :-1,1:  ]) \
+                           / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + f_stag[1:  ,1:  , :-1] + f_stag[ :-1, :-1,1:  ]) / (3.*delta)
+
+            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
+
+        else:
+            delta = 2. * grid_spacing**2.
+
+            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - f_stag[1:  ,1:] - f_stag[ :-1,:-1]) \
+                           / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + f_stag[1:  ,1:] + f_stag[ :-1,:-1]) / (3.*delta)
+            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - f_stag[ :-1,1:] - f_stag[1:  ,:-1]) \
+                           / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + f_stag[ :-1,1:] + f_stag[1:  ,:-1]) / (3.*delta)
+
+            return dsf_dD1s + dsf_dD2s
+
+    else:
+        # This is the original training mesh processing, fstag = f_orig
+        #_ We apply a 3-point stencil to compute the Laplacian
+        grid_spacing = 1.
+
+        if select_dimension == '3D':
+            delta = 3. * grid_spacing**2.
+
+            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
+                           / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
+                           / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
+                           / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - 2. * f_orig[1:-1,1:-1,1:-1]) \
+                           / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+
+            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
+
+        else:
+            delta = 2. * grid_spacing**2.
+
+            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - 2. * f_orig[1:-1,1:-1]) \
+                           / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
+            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - 2. * f_orig[1:-1,1:-1]) \
+                           / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
+
+            return dsf_dD1s + dsf_dD2s
+
+
+# Write predicts out
+def write_predicts_file(location, params_in, func_in, func_pred):
+    predfile = pd.DataFrame(params_in)
+    predfile['f'] = func_in
+    predfile['f_pred'] = func_pred
+    predfile.to_csv(os.path.join(location, 'test_data_out.csv'), index=False)
 
 
 # Compute the rms of the mean
 def check_mean(atest, mean, refd):
     delta = refd - mean
 
-    Ntotal = np.shape(delta)[0]
-
-    rms_check = np.sqrt( np.sum( delta**2. )/Ntotal )
-    mae_check = np.sum( np.abs(delta) )/Ntotal
+    rms_check = np.sqrt( np.mean( delta**2. ) )
+    mae_check = np.mean( np.abs(delta) )
     max_check = np.max( np.abs(delta) )
 
     msg = atest + " errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
@@ -189,38 +243,21 @@ flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
 
 ### DATA POINTS
 
-# training data
-# in three different sizes
+if_negative_param2 = False
+
+# TRAINING data
+#_ in three different sizes
 if select_input_size == 'full':
     data_base = pd.read_csv('./input_f.csv')
-
-    NgridX = 141
-    NgridY = 66
-    NgridZ = 5
-
 elif select_input_size == 'mid':
     data_base = pd.read_csv('./input_m.csv')
-
-    NgridX = 36
-    NgridY = 66
-    NgridZ = 5
-
 elif select_input_size == 'small':
     data_base = pd.read_csv('./input_s.csv')
-
-    NgridX = 36
-    NgridY = 33
-    NgridZ = 5
-
 elif select_input_size == 'tiny':
     data_base = pd.read_csv('./input_t.csv')
 
-    NgridX = 18
-    NgridY = 16
-    NgridZ = 5
-
-# test data
-# extracted from the full case so only really meaningfull for the smaller cases
+# TEST data
+#_ extracted from the full case so only really meaningfull for the smaller cases
 test_base = pd.read_csv('./test.csv')
 
 # Define dimensions, breakpoints and output headers
@@ -236,37 +273,97 @@ else:
 brkpts = data_base.columns[:Ndimensions].to_numpy()
 output = data_base.columns[-1]
 
-# separate the data sets into breakpoints and outputs
+
+# Separate the data sets into breakpoints and outputs
 if select_dimension == '3D':
-    filtin = data_base.index
+    if if_negative_param2:
+        filtin = data_base.index
+    else:
+        filtin = data_base.loc[(data_base['param2'] >= 0)].index    
 elif select_dimension == '2D':
-    filtin = data_base.loc[data_base['param3'] == param3fix].index
+    if if_negative_param2:
+        filtin = data_base.loc[(data_base['param3'] == param3fix)].index
+    else:
+        filtin = data_base.loc[(data_base['param3'] == param3fix) & (data_base['param2'] >= 0)].index
 
 dataso = data_base.loc[filtin][brkpts].astype(np.float64)
 dataf  = data_base.loc[filtin][output].astype(np.float64)
 
 if select_dimension == '3D':
-    filtin = test_base.index
+    if if_negative_param2:
+        filtin = test_base.index
+    else:
+        filtin = test_base.loc[(test_base['param2'] >= 0)].index    
 elif select_dimension == '2D':
-    filtin = test_base.loc[test_base['param3'] == param3fix].index
+    if if_negative_param2:
+        filtin = test_base.loc[(test_base['param3'] == param3fix)].index
+    else:
+        filtin = test_base.loc[(test_base['param3'] == param3fix) & (test_base['param2'] >= 0)].index
 
 testso = test_base.loc[filtin][brkpts].astype(np.float64)
 testf  = test_base.loc[filtin][output].astype(np.float64)
 
-# make the breakpoints nondimensional, in the range [-0.5, 0.5]
-NormMin = np.full(Ndimensions, 0.)
-NormDlt = np.full(Ndimensions, 1.)
 
+# Make the breakpoints nondimensional by unitary grid spacing
 datas = dataso.copy()
 tests = testso.copy()
 
+#_ number of points
+Ngrid = np.zeros(Ndimensions, dtype=int)
+for n, b in enumerate(brkpts):
+    Ngrid[n] = len(np.unique( np.round(dataso[b], decimals=6) ))
+
+#_ mesh spacing
+Dgrid = np.full(Ndimensions, 1.)
+for n, b in enumerate(brkpts):
+    Dgrid[n] = (np.max(dataso[b]) - np.min(dataso[b]))/(Ngrid[n] - 1)
+
+#_ nondimensionalisation
+NormMin = np.full(Ndimensions, 0.)
+NormDlt = np.full(Ndimensions, 1.)
+
 for i, b in enumerate(brkpts):
-    NormMini   = np.min(dataso[b])
-    NormDlt[i] = np.max(dataso[b]) - NormMini
-    NormMin[i] = NormMini/NormDlt[i] + 0.5
+    NormMini   = 0.5*(np.max(dataso[b]) - np.min(dataso[b])) + np.min(dataso[b])
+    NormDlt[i] = Dgrid[i]
+    NormMin[i] = NormMini/NormDlt[i]
 
     datas[b] = dataso[b]/NormDlt[i] - NormMin[i]
     tests[b] = testso[b]/NormDlt[i] - NormMin[i]
+
+
+# We need a vertex centered grid to evaluate the rms
+if select_dimension == '3D':
+
+    XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
+    YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
+    ZZ = np.unique( np.round(dataso['param3'], decimals=6) )/NormDlt[2] - NormMin[2]
+    XXX, YYY, ZZZ = np.meshgrid(XX, YY, ZZ, indexing='ij')
+
+    # staggered mesh
+    vertexmesh_X = ( XXX[:-1, :-1, :-1] + XXX[1:, :-1, :-1] + XXX[:-1, 1:, :-1] + XXX[1:, 1:, :-1]
+                   + XXX[:-1, :-1,1:  ] + XXX[1:, :-1,1:  ] + XXX[:-1, 1:,1:  ] + XXX[1:, 1:,1:  ]) / 8
+    vertexmesh_Y = ( YYY[:-1, :-1, :-1] + YYY[1:, :-1, :-1] + YYY[:-1, 1:, :-1] + YYY[1:, 1:, :-1]
+                   + YYY[:-1, :-1,1:  ] + YYY[1:, :-1,1:  ] + YYY[:-1, 1:,1:  ] + YYY[1:, 1:,1:  ]) / 8
+    vertexmesh_Z = ( ZZZ[:-1, :-1, :-1] + ZZZ[1:, :-1, :-1] + ZZZ[:-1, 1:, :-1] + ZZZ[1:, 1:, :-1]
+                   + ZZZ[:-1, :-1,1:  ] + ZZZ[1:, :-1,1:  ] + ZZZ[:-1, 1:,1:  ] + ZZZ[1:, 1:,1:  ]) / 8
+
+    staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel(), vertexmesh_Z.ravel()]
+
+elif select_dimension == '2D':
+
+    XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
+    YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
+    XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
+
+    # staggered mesh
+    vertexmesh_X = ( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] ) / 4
+    vertexmesh_Y = ( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] ) / 4
+
+    staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel()]
+
+# Store the reference Laplacian metric
+DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), XXX)
+laplacian_dataf = compute_Laplacian(DDD, DDD)
 
 
 
@@ -313,34 +410,19 @@ elif method == 'gpr.gpflow':
 
     if if_train_optim:
         # Define the kernel parameters
-        kernel = gpflow.kernels.SquaredExponential(variance=1.**2, lengthscales=np.full(Ndimensions, 1.0))
+        vars = 1.**2.
+        lens = 1. #np.full(Ndimensions, 1.0)
+        pvar = 0.1
+
+        kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
         # Define the optimizer
         opt = gpflow.optimizers.Scipy()
 
-        # Step 1: Make an initial guess with a reduced number of points
-        r_datas, r_dataf = reduce_point_cloud(datas.to_numpy(), dataf.to_numpy().reshape(-1,1), target_fraction=r_numberofpoints)
-        r_gpr = gpflow.models.GPR(data=(r_datas, r_dataf), kernel=kernel, noise_variance=None)
-        r_gpr.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(r_gpr.likelihood.variance, False)
-
-        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(r_gpr.training_loss()))] ))
-        opt.minimize(r_gpr.training_loss, variables=r_gpr.trainable_variables, options=gpflow_options, step_callback=monitor)
-
-        msg = "Training Kernel - initial condition: " + str(generate_gpflow_kernel_code(r_gpr.kernel))
-        print(msg)
-        flightlog.write(msg+'\n')
-
-        # Step 2: Use the optimized parameters as priors for the full model
-        optimized_variance = r_gpr.kernel.variance.numpy()
-        optimized_lengthscales = r_gpr.kernel.lengthscales.numpy()
-
         # Set priors
-        kernel.variance.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(optimized_variance)), 1.0
-        )
+        gpflow.utilities.set_trainable(kernel.variance, False)
         kernel.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(optimized_lengthscales)), 1.0
+            tf.math.log(gpflow.utilities.to_default_float(lens)), pvar
         )
 
         # Create the full GPR model
@@ -373,6 +455,7 @@ elif method == 'gpr.gpflow':
     meant = my_predicts(posterior_gpr, tests.to_numpy())
     flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
     flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
+    write_predicts_file(dafolder, testso, testf, meant)
 
 
 
@@ -593,22 +676,157 @@ for k, v in enumerate(param3_cases):
         Line2D([0], [0], color='black', linestyle='solid' , linewidth=1.0),
         Line2D([0], [0], color='black', linestyle='dashed', linewidth=0.5),
     ]
-    labels = ['ref', 'fitted']
+    labels = ['Reference', 'Fitted']
     plt.legend(lines, labels)
 
     ax.set_xlabel('param1')
     ax.set_ylabel('param2')
 
     if select_dimension == '3D':
-        pts_in_the_plot = param1_param2_cases[k]
+        pts_in_the_plot = [param1_param2_cases[k]]
     else:
         pts_in_the_plot = param1_param2_cases
-    for c in param1_param2_cases:
+    for c in pts_in_the_plot:
         plt.scatter(c[1], c[2], lw=1, marker='x', label=c[0])
         plt.text(c[1], c[2], c[0], fontsize=9, ha='right', va='bottom')
         plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
+        plt.plot([min(dataso['param1']), max(dataso['param1'])], [c[2], c[2]], 'k--', lw=0.25)
 
     plt.savefig(os.path.join(dafolder, 'the_contours_for_param3-'+str(v)+'.png'))
+    plt.close()
+
+
+# surfaces
+for k, v in enumerate(param3_cases):
+    fig = plt.figure(figsize=(12, 10))
+    fig.suptitle("Surface - param3 "+str(v), fontsize=14)
+    ax = fig.add_subplot(projection='3d')
+
+    # prepare the arrays
+    ngrid = 250
+
+    So = pd.DataFrame( {col: [pd.NA] * ngrid*ngrid for col in dataso.columns} )
+
+    X = np.linspace( min(dataso['param1']), max(dataso['param1']), ngrid )
+    Y = np.linspace( min(dataso['param2']), max(dataso['param2']), ngrid )
+
+    XX, YY = np.meshgrid(X, Y)
+
+    So['param1'] = XX.ravel()
+    So['param2'] = YY.ravel()
+
+    if select_dimension == '3D':
+        So['param3'] = v
+        filtered_indices = dataso[ np.round(dataso['param3'], decimals=6) == v].index
+    else:
+        filtered_indices = dataso.index
+
+    S = So.copy()
+    for i, b in enumerate(brkpts):
+        S[b] = So[b]/NormDlt[i] - NormMin[i]
+
+    Z2 = my_predicts(model, S.to_numpy()).reshape(ngrid, ngrid)
+
+    ax.plot_surface(XX, YY, Z2, cmap=cm.seismic, linewidth=0, alpha=0.5, antialiased=True, label="Fitted")
+
+    # fetch the reference data
+    X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
+    Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
+
+    XX, YY = np.meshgrid(X, Y)
+
+    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
+
+    ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="Reference")
+
+    ax.view_init(elev=20, azim=135)
+    ax.legend()
+
+    ax.set_xlabel('param1')
+    ax.set_ylabel('param2')
+
+    plt.savefig(os.path.join(dafolder, 'the_surface_for_param3-'+str(v)+'.png'))
+    plt.close()
+
+
+# surfaces - Laplacian
+for k, v in enumerate(param3_cases):
+    fig = plt.figure(figsize=(12, 10))
+    fig.suptitle("Laplacian - param3 "+str(v), fontsize=14)
+    ax = fig.add_subplot(projection='3d')
+
+    if select_dimension == '3D':
+        param3_vals = np.unique(np.round(dataso['param3'], decimals=6))
+        k = np.where(np.isclose(param3_vals, v, atol=1e-6))[0][0] - 1 # subtracting 1 cause the laplacians only have interior points
+
+    X = np.unique(np.round(dataso['param1'], decimals=6))
+    Y = np.unique(np.round(dataso['param2'], decimals=6))
+    XX, YY = np.meshgrid(X[1:-1], Y[1:-1], indexing='ij')
+
+    # original mesh
+    Z1 = laplacian_dataf[:, :, k] if laplacian_dataf.ndim == 3 else laplacian_dataf
+
+    # staggered mesh
+    predf = my_predicts(model, datas.to_numpy())
+    predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, XXX)
+
+    predf_staggered = my_predicts(model, staggeredpts)
+    predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
+
+    laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
+    Z2 = laplacian_predf[:, :, k] if laplacian_predf.ndim == 3 else laplacian_predf
+
+    # aight
+    ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="Reference")
+    ax.plot_surface(XX, YY, Z2, cmap=cm.spring, linewidth=0.4, alpha=0.7, antialiased=False, shade=True, label="Fitted")
+
+    ax.view_init(elev=20, azim=135)
+    ax.legend()
+
+    ax.set_xlabel('param1')
+    ax.set_ylabel('param2')
+    ax.set_zlabel('Laplacian(var1)')
+
+    plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.png'))
+    plt.close()
+
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(f"Midline Laplacian Comparison (log scale) - param3 = {v}", fontsize=14)
+
+    # X-direction slice (mid param1)
+    mid_x = len(X[1:-1]) // 2
+    x_vals = Y[1:-1]
+    z1_x = Z1[mid_x, :]
+    z2_x = Z2[mid_x, :]
+    delta_x = np.abs(z1_x - z2_x)
+
+    axs[0].plot(x_vals, z1_x, label='Reference', color='black', linewidth=1)
+    axs[0].plot(x_vals, z2_x, label='Fitted', color='red', linestyle='--', linewidth=1)
+    axs[0].plot(x_vals, delta_x, label='|Δ|', color='blue', linestyle=':', linewidth=1)
+    axs[0].set_title('Slice along param2 (mid param1)')
+    axs[0].set_xlabel('param2')
+    axs[0].set_ylabel('Laplacian')
+    axs[0].legend()
+    axs[0].grid(True)
+
+    # Y-direction slice (mid param2)
+    mid_y = len(Y[1:-1]) // 2
+    y_vals = X[1:-1]
+    z1_y = Z1[:, mid_y]
+    z2_y = Z2[:, mid_y]
+    delta_y = np.abs(z1_y - z2_y)
+
+    axs[1].plot(y_vals, z1_y, label='Reference', color='black', linewidth=1)
+    axs[1].plot(y_vals, z2_y, label='Fitted', color='red', linestyle='--', linewidth=1)
+    axs[1].plot(y_vals, delta_y, label='|Δ|', color='blue', linestyle=':', linewidth=1)
+    axs[1].set_title('Slice along param1 (mid param2)')
+    axs[1].set_xlabel('param1')
+    axs[1].set_ylabel('Laplacian')
+    axs[1].legend()
+    axs[1].grid(True)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(os.path.join(dafolder, f"Laplacian_crosssection_param3-{v}.png"))
     plt.close()
 
 
@@ -616,7 +834,7 @@ for k, v in enumerate(param3_cases):
 if select_dimension == '3D':
     params_to_range = ['param3', 'param2']
 elif select_dimension == '2D':
-    params_to_range = ['param2']
+    params_to_range = ['param2', 'param1']
 
 for c in param1_param2_cases:
 
@@ -626,19 +844,28 @@ for c in param1_param2_cases:
         fig = plt.figure(figsize=(12, 10))
         ax = fig.add_subplot(111)
 
-        if pranged == 'param3':
-            psearch = 'param2'
-            cx = c[2]
-        elif pranged == 'param2':
-            psearch = 'param3'
-            cx = c[3]
+        if select_dimension == '3D':
+            # param1 is fixed
+            if pranged == 'param3':
+                psearch = 'param2'
+                cx = c[2]
+            elif pranged == 'param2':
+                psearch = 'param3'
+                cx = c[3]
+        elif select_dimension == '2D':
+            if pranged == 'param2':
+                psearch = 'param1'
+                cx = c[1]
+            elif pranged == 'param1':
+                psearch = 'param2'
+                cx = c[2]
 
         # get the closest points from the original "dimensional" data
         df = pd.DataFrame(dataso)
         if select_dimension == '3D':
             df['distance'] = np.sqrt((df['param1'] - c[1])**2 + (df[psearch] - cx)**2)
         else:
-            df['distance'] = np.abs(df['param1'] - c[1])
+            df['distance'] = np.abs(df[psearch] - cx)
         closest_points_index = df.loc[df['distance'] == df['distance'].min()].index
 
         param_range = np.linspace( min(dataso[pranged]), max(dataso[pranged]), 333 )
@@ -648,17 +875,18 @@ for c in param1_param2_cases:
         FR = dataf[closest_points_index]
 
         # Fit the data to generate the plot
-        c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
         if select_dimension == '3D':
-            c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][psearch] ).item()
+            c_param1 = np.unique( df.loc[df['distance'] == df['distance'].min()]['param1'] ).item()
+            c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][ psearch] ).item()
             fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3))+"; " + psearch + " "+str(round(c_paramx,3)), fontsize=14)
         else:
-            fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_param1,3)), fontsize=14)
+            c_paramx = np.unique( df.loc[df['distance'] == df['distance'].min()][ psearch] ).item()
+            fig.suptitle("Condition  "+str(c_name)+": param1 "+str(round(c_paramx,3)), fontsize=14)
 
         # create the X dimension to be fitted
         Xo = pd.DataFrame( {col: [pd.NA] * len(param_range) for col in datas.columns} )
-        Xo['param1'] = c_param1
-        if select_dimension == '3D': Xo[psearch] = c_paramx
+        if select_dimension == '3D': Xo['param1'] = c_param1
+        Xo[psearch] = c_paramx
         Xo[pranged] = param_range
 
         X = Xo.copy()
@@ -668,8 +896,8 @@ for c in param1_param2_cases:
         Y1 = my_predicts(model, X.to_numpy())
 
         # plot
-        plt.plot(param_range, Y1.T, lw=0.5, label='fitted')
-        plt.scatter(XR, FR.T, lw=0.5, marker='o', label='ref')
+        plt.plot(param_range, Y1.T, lw=0.5, label='Fitted')
+        plt.scatter(XR, FR.T, lw=0.5, marker='o', label='Reference')
 
         ax.set_xlabel(pranged)
         ax.set_ylabel('var1')
@@ -706,7 +934,7 @@ fig, ax = plt.subplots(figsize=(8, 8))
 for i in range(num_points):
 
     if select_dimension == '3D':
-        color_index = int(4 * (testso.at[i, 'param3'] - param3_min)/param3_dlt)
+        color_index = int(4 * (testso.iloc[i]['param3'] - param3_min)/param3_dlt)
     else:
         color_index = 0
 
