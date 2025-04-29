@@ -748,8 +748,24 @@ for k, v in enumerate(param3_cases):
     plt.close()
 
 
-# surfaces - Laplacian
+# Laplacians
+#_ Build the staggered mesh info to plot and write out the RMSE
+predf = my_predicts(model, datas.to_numpy())
+predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, XXX)
+
+predf_staggered = my_predicts(model, staggeredpts)
+predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
+
+laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
+
+loss_m = np.sqrt(np.mean((laplacian_predf - laplacian_dataf)**2.))
+msg = f"RMSE of the Laplacians: {loss_m:.3e}"
+print(msg)
+flightlog.write(msg+'\n')
+
+#_ Now to the plots
 for k, v in enumerate(param3_cases):
+    #__ Plot the surfaces
     fig = plt.figure(figsize=(12, 10))
     fig.suptitle("Laplacian - param3 "+str(v), fontsize=14)
     ax = fig.add_subplot(projection='3d')
@@ -762,17 +778,8 @@ for k, v in enumerate(param3_cases):
     Y = np.unique(np.round(dataso['param2'], decimals=6))
     XX, YY = np.meshgrid(X[1:-1], Y[1:-1], indexing='ij')
 
-    # original mesh
+    # filtered data in the plane
     Z1 = laplacian_dataf[:, :, k] if laplacian_dataf.ndim == 3 else laplacian_dataf
-
-    # staggered mesh
-    predf = my_predicts(model, datas.to_numpy())
-    predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, XXX)
-
-    predf_staggered = my_predicts(model, staggeredpts)
-    predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
-
-    laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
     Z2 = laplacian_predf[:, :, k] if laplacian_predf.ndim == 3 else laplacian_predf
 
     # aight
@@ -789,6 +796,7 @@ for k, v in enumerate(param3_cases):
     plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.png'))
     plt.close()
 
+    #__ Plot X-Ys
     fig, axs = plt.subplots(1, 2, figsize=(14, 5))
     fig.suptitle(f"Midline Laplacian Comparison (log scale) - param3 = {v}", fontsize=14)
 
