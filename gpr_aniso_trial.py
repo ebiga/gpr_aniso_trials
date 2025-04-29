@@ -169,13 +169,14 @@ if_fold = False
 
 GRID_POINTS = 5
 NUM_REPEATS = 6
-NUM_KERNELS = 2
+NUM_KERNELS = 1
 
 variance_grid = np.exp(np.linspace(np.log(3.0), np.log(9.0), GRID_POINTS))
 lengthss_grid = np.exp(np.linspace(np.log(4.0), np.log(8.0), GRID_POINTS))
 scalings_grid = np.exp(np.linspace(np.log(0.05), np.log(0.5), GRID_POINTS))
 
 stddev = 0.1
+alpha = 1.5
 
 def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
     # Prepare the infrastructure
@@ -192,7 +193,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
         vars = rng.choice(variance_grid)
         lens = rng.choice(lengthss_grid)
 
-        kernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
+        kernel = gpflow.kernels.RationalQuadratic(variance=vars, lengthscales=lens, alpha=alpha)
         kernel.variance.prior = tfp.distributions.LogNormal(
             tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
         )
@@ -200,13 +201,14 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
             tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
         )
         gpflow.set_trainable(kernel.alpha, False)
+        gpflow.set_trainable(kernel.variance, False)
 
         for otherks in range(NUM_KERNELS-1):
             facs = rng.choice(scalings_grid)
             vars = facs**2 * vars
             lens = facs * lens
 
-            kkernel = gpflow.kernels.RationalQuadratic(alpha=0.005, variance=vars, lengthscales=lens)
+            kkernel = gpflow.kernels.RationalQuadratic(variance=vars, lengthscales=lens, alpha=alpha)
             kkernel.variance.prior = tfp.distributions.LogNormal(
                 tf.math.log(gpflow.utilities.to_default_float(vars)), stddev
             )
@@ -214,6 +216,7 @@ def random_search_gpflow_ard(datas, dataf, k=5, n_trials=NUM_REPEATS, n_jobs=4):
                 tf.math.log(gpflow.utilities.to_default_float(lens)), stddev
             )
             gpflow.set_trainable(kkernel.alpha, False)
+            gpflow.set_trainable(kkernel.variance, False)
 
             kernel = kernel + kkernel
 
