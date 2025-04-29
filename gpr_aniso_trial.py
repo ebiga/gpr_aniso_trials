@@ -889,8 +889,8 @@ for k, v in enumerate(param3_cases):
     # X-direction slice (mid param1)
     mid_x = len(X[1:-1]) // 2
     x_vals = Y[1:-1]
-    z1_x = Z1[mid_x, :]
-    z2_x = Z2[mid_x, :]
+    z1_x = np.log10(Z1[mid_x, :])
+    z2_x = np.log10(Z2[mid_x, :])
     delta_x = np.abs(z1_x - z2_x)
 
     axs[0].plot(x_vals, z1_x, label='Reference', color='black', linewidth=1)
@@ -898,15 +898,18 @@ for k, v in enumerate(param3_cases):
     axs[0].plot(x_vals, delta_x, label='|Δ|', color='blue', linestyle=':', linewidth=1)
     axs[0].set_title('Slice along param2 (mid param1)')
     axs[0].set_xlabel('param2')
-    axs[0].set_ylabel('Laplacian')
+    axs[0].set_ylabel('Log Laplacian(var1)')
     axs[0].legend()
     axs[0].grid(True)
+    axs[0].set_xlim(0,11)
+    axs[0].set_ylim(-2.5,0.5)
+    axs[0].margins(0, x=None, y=None, tight=True)
 
     # Y-direction slice (mid param2)
     mid_y = len(Y[1:-1]) // 2
     y_vals = X[1:-1]
-    z1_y = Z1[:, mid_y]
-    z2_y = Z2[:, mid_y]
+    z1_y = np.log10(Z1[:, mid_y])
+    z2_y = np.log10(Z2[:, mid_y])
     delta_y = np.abs(z1_y - z2_y)
 
     axs[1].plot(y_vals, z1_y, label='Reference', color='black', linewidth=1)
@@ -914,9 +917,12 @@ for k, v in enumerate(param3_cases):
     axs[1].plot(y_vals, delta_y, label='|Δ|', color='blue', linestyle=':', linewidth=1)
     axs[1].set_title('Slice along param1 (mid param2)')
     axs[1].set_xlabel('param1')
-    axs[1].set_ylabel('Laplacian')
+    axs[1].set_ylabel('Log Laplacian(var1)')
     axs[1].legend()
     axs[1].grid(True)
+    axs[1].set_xlim(0,35)
+    axs[1].set_ylim(-2.5,0.5)
+    axs[1].margins(0, x=None, y=None, tight=True)
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig(os.path.join(dafolder, f"Laplacian_crosssection_param3-{v}.png"))
