@@ -372,14 +372,15 @@ laplacian_dataf = compute_Laplacian(DDD, DDD)
 vars = 1.**2.
 lens = [0.01, 0.1, 0.5, 1., 5., 10.]
 pvar = 0.3
-alph = [1] #[0.005, 0.05, 0.5, 5., 10., 50.]
+alph = [0.005, 0.05, 0.5, 5., 10., 50.]
 
 for alp in alph:
     for ll in lens:
         start_time = time.time()
-        print(f'******* lengthscale {ll}')
+        print(f'******* lengthscale {ll}, alpha {alp}')
 
-        dafolder = afolder + "_SE" + "_len-" + str(ll)
+        #dafolder = afolder + "_SE" + "_len-" + str(ll)
+        dafolder = afolder + "_RQ" + "_len-" + str(ll) + "_alp-" + str(alp)
         os.makedirs(dafolder, exist_ok=True)
 
         flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
@@ -388,14 +389,15 @@ for alp in alph:
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
 
         # Define the kernel parameters
-        #kernel = gpflow.kernels.RationalQuadratic(variance=vars, lengthscales=lens, alpha=alp)
-        kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=ll)
+        kernel = gpflow.kernels.RationalQuadratic(variance=vars, lengthscales=ll, alpha=alp)
+        #kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=ll)
 
         # Define the optimizer
         opt = gpflow.optimizers.Scipy()
 
         # Set priors
         gpflow.utilities.set_trainable(kernel.variance, False)
+        #gpflow.utilities.set_trainable(kernel.alpha, False)
         kernel.lengthscales.prior = tfp.distributions.LogNormal(
             tf.math.log(gpflow.utilities.to_default_float(ll)), pvar
         )
