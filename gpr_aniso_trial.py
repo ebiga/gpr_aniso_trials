@@ -250,12 +250,11 @@ class SqueezeALayer(layers.Layer):
 
 
 # A KFold thingy going on
-alpha = 1.
 bound = scipy.optimize.Bounds(0.005,500.)
 
 def get_me_a_kernel(alph, lens, vars=1.):
-    # return gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
-    return gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
+    return gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
+    # return gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
 def minimise_training_laplacian(hyperps, datas, dataf, histories):
 
@@ -265,6 +264,7 @@ def minimise_training_laplacian(hyperps, datas, dataf, histories):
 
         # Define the kernel parameters
         lens  = x[0]
+        alpha = x[1]
         kernel = get_me_a_kernel(alpha, lens)
 
         # Optimize over the full dataset. This is a basic grid search method.
@@ -298,7 +298,8 @@ def minimise_training_laplacian(hyperps, datas, dataf, histories):
     res = scipy.optimize.minimize(evaluate_trial, inits, method='COBYQA', jac='3-point', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
-    lens = res.x[0]
+    lens  = res.x[0]
+    alpha = res.x[1]
     fkernel = get_me_a_kernel(alpha, lens)
 
     model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=fkernel, noise_variance=None)
@@ -467,15 +468,16 @@ laplacian_dataf = compute_Laplacian(DDD, DDD)
 vars = 1.**2.
 lens = [0.01, 0.1, 0.5, 1., 5., 10.]
 pvar = 0.3
-alph = [1] #[0.005, 0.05, 0.5, 5., 10., 50.]
+alph = [0.005, 0.05, 0.5, 5., 10., 50.]
 
 for alp in alph:
     for ll in lens:
         start_time = time.time()
         print(f'******* lengthscale {ll}, alpha {alp}')
 
-        dafolder = afolder + "_SE" + "_len-" + str(ll)
+        #dafolder = afolder + "_SE" + "_len-" + str(ll)
         #dafolder = afolder + "_RQ" + "_len-" + str(ll) + "_fix-alp-" + str(alp)
+        dafolder = afolder + "_RQ" + "_len-" + str(ll) + "_alp-" + str(alp)
         os.makedirs(dafolder, exist_ok=True)
 
         flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
@@ -484,7 +486,9 @@ for alp in alph:
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
 
         # Define the optimizer
-        hypers = [ll]
+        #hypers = [ll]
+        #alpha = alp
+        hypers = [ll, alp]
         model = minimise_training_laplacian(hypers, datas, dataf, loss)
 
         msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
