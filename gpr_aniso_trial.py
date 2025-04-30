@@ -515,7 +515,9 @@ for alp in alph:
 
         # training convergence
         if if_train_optim:
-            plt.plot(np.array(loss)[:,0], label='Training Loss')
+            plt.plot(np.array(loss)[:,0], label='Total Loss')
+            plt.plot(np.array(loss)[:,1], label='Training Loss')
+            plt.plot(np.array(loss)[:,2], label='Laplacian Loss')
             plt.xlabel('Epochs')
             plt.ylabel('Log(Loss)')
             plt.title('Loss Convergence')
