@@ -255,8 +255,6 @@ bound = scipy.optimize.Bounds(0.005,500.)
 
 def get_me_a_kernel(alph, lens, vars=1.):
     # return gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
-    # return gpflow.kernels.Matern32(variance=vars, lengthscales=lens)
-    # return gpflow.kernels.Matern52(variance=vars, lengthscales=lens)
     return gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
 def minimise_training_laplacian(hyperps, datas, dataf, histories):
@@ -290,7 +288,6 @@ def minimise_training_laplacian(hyperps, datas, dataf, histories):
         loss_m = np.sqrt(np.mean((laplacian_predf - laplacian_dataf)**2.))
 
         loss = loss_e + loss_m
-        print(x,loss,loss_e,loss_m)
         histories.append([np.log10(loss), np.log10(loss_e), np.log10(loss_m)])
 
         return loss
