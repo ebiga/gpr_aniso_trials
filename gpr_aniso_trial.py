@@ -11,6 +11,7 @@ import torch
 import gpytorch
 import matplotlib
 matplotlib.use('TkAgg')
+matplotlib.set_loglevel('critical')
 
 import matplotlib.pyplot as plt
 import gpflow.utilities as gputil
@@ -230,6 +231,7 @@ gpflow_options = casesetup['gpflow_setup']['optimiser']
 keras_options = casesetup['keras_setup']
 gpytorch_options = casesetup['gpytorch_setup']
 n_restarts_optimizer = casesetup['scikit_setup']['n_restarts_optimizer']
+figformat = casesetup['fig_format']
 
 # file locations
 dafolder = method + "_" + select_dimension + "_" + select_input_size
@@ -612,7 +614,7 @@ if if_train_optim:
     plt.ylabel('Log(Loss)')
     plt.title('Loss Convergence')
     plt.legend()
-    plt.savefig(os.path.join(dafolder, 'convergence_'+str(method)+'.png'))
+    plt.savefig(os.path.join(dafolder, 'convergence_'+str(method)+'.'+figformat), format=figformat, dpi=1200)
     plt.close()
 
 
@@ -691,7 +693,7 @@ for k, v in enumerate(param3_cases):
         plt.plot([c[1], c[1]], [min(dataso['param2']), max(dataso['param2'])], 'k--', lw=0.25)
         plt.plot([min(dataso['param1']), max(dataso['param1'])], [c[2], c[2]], 'k--', lw=0.25)
 
-    plt.savefig(os.path.join(dafolder, 'the_contours_for_param3-'+str(v)+'.png'))
+    plt.savefig(os.path.join(dafolder, 'the_contours_for_param3-'+str(v)+'.'+figformat), format=figformat, dpi=1200)
     plt.close()
 
 
@@ -744,7 +746,7 @@ for k, v in enumerate(param3_cases):
     ax.set_xlabel('param1')
     ax.set_ylabel('param2')
 
-    plt.savefig(os.path.join(dafolder, 'the_surface_for_param3-'+str(v)+'.png'))
+    plt.savefig(os.path.join(dafolder, 'the_surface_for_param3-'+str(v)+'.'+figformat), format=figformat, dpi=1200)
     plt.close()
 
 
@@ -793,7 +795,7 @@ for k, v in enumerate(param3_cases):
     ax.set_ylabel('param2')
     ax.set_zlabel('Laplacian(var1)')
 
-    plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.png'))
+    plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.'+figformat), format=figformat, dpi=1200)
     plt.close()
 
     #__ Plot X-Ys
@@ -839,7 +841,7 @@ for k, v in enumerate(param3_cases):
     axs[1].margins(0, x=None, y=None, tight=True)
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.savefig(os.path.join(dafolder, f"Laplacian_crosssection_param3-{v}.png"))
+    plt.savefig(os.path.join(dafolder, f"Laplacian_crosssection_param3-{v}."+figformat), format=figformat, dpi=1200)
     plt.close()
 
 
@@ -917,7 +919,7 @@ for c in param1_param2_cases:
 
         plt.legend()
 
-        plt.savefig(os.path.join(dafolder, 'the_plot_for_'+str(c_name)+'_vs_'+pranged+'.png'))
+        plt.savefig(os.path.join(dafolder, 'the_plot_for_'+str(c_name)+'_vs_'+pranged+'.'+figformat), format=figformat, dpi=1200)
         plt.close()
 
         # save the dat file
@@ -982,7 +984,7 @@ ax.set_xlabel("Expected")
 ax.set_ylabel("Fitted")
 ax.set_title("Testing Space 1:1")
 
-plt.savefig(os.path.join(dafolder, 'one-to-one_for_'+str(c_name)+'.png'))
+plt.savefig(os.path.join(dafolder, 'one-to-one_for_'+str(c_name)+'.'+figformat), format=figformat, dpi=1200)
 plt.close()
 
 

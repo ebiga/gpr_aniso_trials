@@ -18,6 +18,9 @@ method: 'gpr.gpytorch'
 # let the hyperparameters by optmised? otherwise, read a pre-saved model
 if_train_optim: true
 
+# output figure format: eps, png
+fig_format: eps
+
 # GPR scikit options
 scikit_setup:
 {
