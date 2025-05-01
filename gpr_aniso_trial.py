@@ -320,7 +320,7 @@ with open('./casesetup.hjson', 'r') as casesetupfile:
 
 select_dimension = '3D'
 select_input_size = 'tiny'
-method = casesetup['method']
+method = 'gpr.gpflow'
 if_train_optim = casesetup['if_train_optim']
 gpflow_options = casesetup['gpflow_setup']['optimiser']
 keras_options = casesetup['keras_setup']
