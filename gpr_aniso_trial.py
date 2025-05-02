@@ -71,40 +71,6 @@ def generate_gpflow_kernel_code(kernel):
     return kernel_to_code(kernel)
 
 
-# Dataset reduction for initial condition determination
-def reduce_point_cloud(X, Y, target_fraction=0.5):
-    """
-    - X: Input dataset (numpy array, shape [N, D]).
-    - Y: Target values (numpy array, shape [N, 1]).
-    - target_fraction: Desired fraction of the total dataset to retain.
-    """
-    num_points, num_dims = X.shape
-
-    # Compute the range of values for each dimension
-    # Sort dimensions by range (descending)
-    ranges = [np.ptp(X[:, i]) for i in range(num_dims)]
-    sorted_dims = np.argsort(ranges)[::-1]
-
-    # Determine the per-dimension reduction factor
-    # Keep the smallest dimension intact
-    dimensions_to_reduce = sorted_dims[:-1]
-    per_dim_reduction = target_fraction ** (1 / len(dimensions_to_reduce))
-
-    # Apply reduction logic
-    mask = np.ones(num_points, dtype=bool)
-    for dim in dimensions_to_reduce:
-        unique_vals = np.unique( np.round(X[:, dim], decimals=6) )
-        reduced_count = max(1, int(len(unique_vals) * per_dim_reduction))
-        reduced_vals = unique_vals[:: len(unique_vals) // reduced_count][:reduced_count]
-        mask &= np.isin(X[:, dim], reduced_vals)
-
-    # Apply mask to reduce the dataset
-    X_reduced = X[mask]
-    Y_reduced = Y[mask]
-
-    return X_reduced, Y_reduced
-
-
 # Reshape due to csv XY and my lovely IJ orders
 def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid):
     # the csv comes in the reversed order of the IJ mesh grid
