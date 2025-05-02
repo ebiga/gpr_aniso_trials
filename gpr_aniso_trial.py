@@ -261,7 +261,7 @@ def get_me_a_kernel(alph, lens, vars=1.):
     # tempk = gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
     # gpflow.set_trainable(tempk.alpha, False)
     # return tempk
-    return gpflow.kernels.Matern12(variance=vars, lengthscales=lens)
+    return gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
 def minimise_training_laplacian(datas, dataf, histories):
 
