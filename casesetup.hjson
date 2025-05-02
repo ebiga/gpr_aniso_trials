@@ -36,6 +36,8 @@ gpflow_setup:
         maxiter: 1500,
         gtol: 1e-9,
         ftol: 1e-9,
+        tol: 1e-9,
+        initial_tr_radius: 5,
     }
 }
 

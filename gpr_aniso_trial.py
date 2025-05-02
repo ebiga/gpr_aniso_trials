@@ -306,7 +306,7 @@ def minimise_training_laplacian(datas, dataf, histories):
 
     # Optimizesss
     inits = np.array([0.5*np.exp(-k) for k in range(NUM_KERNELS) for count in range(1 + IF_ARD * (Ndimensions-1))])
-    res = scipy.optimize.minimize(evaluate_trial, inits, method='L-BFGS-B', jac='3-point', bounds=bound, options=gpflow_options)
+    res = scipy.optimize.minimize(evaluate_trial, inits, method='COBYQA', bounds=bound, options=gpflow_options)
 
     # Assemble the final model
     lens = np.array([res.x[ilen] for ilen in range(1 + IF_ARD * (Ndimensions-1))])
