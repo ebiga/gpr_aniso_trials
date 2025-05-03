@@ -632,52 +632,31 @@ for alp in alph:
             plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.'+figformat), format=figformat, dpi=1200)
             plt.close()
 
-            #__ Plot X-Ys
-            fig, axs = plt.subplots(1, 2, figsize=(14, 5))
-            fig.suptitle(f"Midline Laplacian Comparison (log scale) - param3 = {v}", fontsize=14)
+        # __ Plot X-Ys
+        fig, ax = plt.subplots(figsize=(12, 10))
 
-            # X-direction slice (mid param1)
-            mid_x = len(X[1:-1]) // 2
-            x_vals = Y[1:-1]
-            z1_x = np.log10(Z1[mid_x, :])
-            z2_x = np.log10(Z2[mid_x, :])
-            delta_x = np.abs(z1_x - z2_x)
+        # X-direction slice at param1 = 14
+        param1_val = 14
+        idx_param1 = np.argmin(np.abs(X[1:-1] - param1_val))
+        x_vals = Y[1:-1]
+        z1_x = np.log10(Z1[idx_param1, :])
+        z2_x = np.log10(Z2[idx_param1, :])
+        delta_x = np.abs(z1_x - z2_x)
 
-            axs[0].plot(x_vals, z1_x, label='Reference', color='black', linewidth=1)
-            axs[0].plot(x_vals, z2_x, label='Fitted', color='red', linestyle='--', linewidth=1)
-            axs[0].plot(x_vals, delta_x, label='|Δ|', color='blue', linestyle=':', linewidth=1)
-            axs[0].set_title('Slice along param2 (mid param1)')
-            axs[0].set_xlabel('param2')
-            axs[0].set_ylabel('Log Laplacian(var1)')
-            axs[0].legend()
-            axs[0].grid(True)
-            axs[0].set_xlim(0,11)
-            axs[0].set_ylim(-2.5,0.5)
-            axs[0].margins(0, x=None, y=None, tight=True)
+        ax.plot(x_vals, z1_x, label='Reference', color='black', linewidth=1)
+        ax.plot(x_vals, z2_x, label='Fitted', color='red', linestyle='--', linewidth=1)
+        ax.plot(x_vals, delta_x, label='|Δ|', color='blue', linestyle=':', linewidth=1)
+        ax.set_xlabel('param2')
+        ax.set_ylabel('Log mod. Diffusion Operator')
+        ax.legend()
+        ax.grid(True)
+        ax.set_xlim(0, 8)
+        ax.set_ylim(-2.5, 0.5)
+        ax.margins(0, tight=True)
 
-            # Y-direction slice (mid param2)
-            mid_y = len(Y[1:-1]) // 2
-            y_vals = X[1:-1]
-            z1_y = np.log10(Z1[:, mid_y])
-            z2_y = np.log10(Z2[:, mid_y])
-            delta_y = np.abs(z1_y - z2_y)
-
-            axs[1].plot(y_vals, z1_y, label='Reference', color='black', linewidth=1)
-            axs[1].plot(y_vals, z2_y, label='Fitted', color='red', linestyle='--', linewidth=1)
-            axs[1].plot(y_vals, delta_y, label='|Δ|', color='blue', linestyle=':', linewidth=1)
-            axs[1].set_title('Slice along param1 (mid param2)')
-            axs[1].set_xlabel('param1')
-            axs[1].set_ylabel('Log Laplacian(var1)')
-            axs[1].legend()
-            axs[1].grid(True)
-            axs[1].set_xlim(0,35)
-            axs[1].set_ylim(-2.5,0.5)
-            axs[1].margins(0, x=None, y=None, tight=True)
-
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-            plt.savefig(os.path.join(dafolder, f"Laplacian_crosssection_param3-{v}."+figformat), format=figformat, dpi=1200)
-            plt.close()
-
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.savefig(os.path.join(dafolder, f"Laplacian_param1-14_param3-{v}.{figformat}"), format=figformat, dpi=1200)
+        plt.close()
 
         # X-Ys
         if select_dimension == '3D':
