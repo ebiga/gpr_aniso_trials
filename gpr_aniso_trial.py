@@ -510,6 +510,9 @@ elif method == 'gpr.gpflow':
     flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
     write_predicts_file(dafolder, testso, testf, meant)
 
+    hists = pd.DataFrame(loss)
+    hists.to_csv(os.path.join(dafolder, 'loss.csv'), index=False)
+
 
 
 elif method == 'gpr.gpytorch':
