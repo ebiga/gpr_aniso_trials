@@ -517,6 +517,9 @@ for alp in alph:
         write_predicts_file(dafolder, testso, testf, meant)
 
 
+    hists = pd.DataFrame(loss)
+    hists.to_csv(os.path.join(dafolder, 'loss.csv'), index=False)
+
 
 
         ### PLOTTING
