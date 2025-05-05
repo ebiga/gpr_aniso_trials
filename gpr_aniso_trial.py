@@ -30,6 +30,7 @@ from gpflow.monitor import Monitor, MonitorTaskGroup
 # get my functions
 from auxfunctions import *
 from auxgpytorch  import *
+from optimme      import *
 
 # set floats and randoms
 gpflow.config.set_default_float('float64')
@@ -46,7 +47,7 @@ torch.manual_seed(42)
 
 ### IMPORTANT SHIZ
 
-# Compute Laplacians for 2D and 3D, cell centred, for normal or staggered meshes
+## FUNCTION: Compute Laplacians for 2D and 3D, cell centred, for normal or staggered meshes
 #_ The Laplacians are computed along the diagonals, so we can have only one staggered mesh
 #_ It's never enough any effort to make life easier...
 def compute_Laplacian(f_orig, f_stag):
@@ -108,6 +109,103 @@ def compute_Laplacian(f_orig, f_stag):
                            / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
 
             return dsf_dD1s + dsf_dD2s
+
+
+
+## FUNCTION: Setup the model to be run and the file to save it
+def get_me_a_model(method, DATAX, DATAF):
+
+    if method == 'gpr.scikit':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
+
+        # Define the kernel parameters
+        kernel = 1.**2 * RBF(length_scale=np.full(Ndimensions, 1.0))
+
+        # Setup the model
+        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
+
+        return model, None, trained_model_file
+
+
+    elif method == 'gpr.gpflow':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
+
+        # Define the kernel parameters
+        vars = 1.**2.
+        lens = 1. #np.full(Ndimensions, 1.0)
+        pvar = 0.1
+
+        kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
+
+        # Set priors
+        gpflow.utilities.set_trainable(kernel.variance, False)
+        kernel.lengthscales.prior = tfp.distributions.LogNormal(
+            tf.math.log(gpflow.utilities.to_default_float(lens)), pvar
+        )
+
+        # Create the full GPR model
+        model = gpflow.models.GPR(data=(DATAX, DATAF.reshape(-1,1)), kernel=kernel, noise_variance=None)
+
+        # GPflow requires us to build a likelihood, we want it noiseless and not trainable
+        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+        gpflow.set_trainable(model.likelihood.variance, False)
+
+        return model, model.likelihood, trained_model_file
+
+
+    elif method == 'gpr.gpytorch':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pth')
+
+        train_x = torch.tensor(DATAX)
+        train_y = torch.tensor(DATAF)
+
+        # Define the model
+        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
+        model = GPRegressionModel(train_x, train_y, likelihood)
+
+        # set the mode to training
+        model.train()
+        likelihood.train()
+
+        return model, likelihood, trained_model_file
+
+
+    elif method == 'nn.dense':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
+
+        # Setup the neural network
+        input_shape = DATAX.shape[1:]
+
+        model = keras.Sequential(
+            [layers.Input(shape=input_shape)] +
+            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in keras_options["hidden_layers"]] +
+            [layers.Dense(1)]
+            )
+
+        return model, None, trained_model_file
+
+
+    elif method == 'nn.attention':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
+        
+        # Setup the neural network
+        input_shape = DATAX.shape[1:]
+        inputs = layers.Input(shape=input_shape)
+
+        # Apply Multi-Head Attention
+        re_inputs = ExpandALayer()(inputs)
+        attention_output = layers.MultiHeadAttention(num_heads=keras_options["multiheadattention_setup"]["num_heads"], key_dim=Ndimensions)(re_inputs, re_inputs)
+        output = SqueezeALayer()(attention_output)
+
+        # Fully connected layers
+        for nn in keras_options["hidden_layers"]:
+            output = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(output)
+        output = layers.Dense(1)(output)
+
+        # Create model
+        model = keras.models.Model(inputs=inputs, outputs=output)
+
+        return model, None, trained_model_file
 
 
 
@@ -270,237 +368,28 @@ laplacian_dataf = compute_Laplacian(DDD, DDD)
 
 ### TRAIN THE MODELS
 
-if method == 'gpr.scikit':
+# We need to build a model first
+model, likelihood, trained_model_file = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
+
+# Now we decide what to do with it
+if if_train_optim == 'conventional':
     loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
-
-    if if_train_optim:
-        # Define the kernel parameters
-        kernel = 1.**2 * RBF(length_scale=np.full(Ndimensions, 1.0))
-
-        # Setup the model
-        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
-
-        # Train model
-        model.fit(datas.to_numpy(), dataf.to_numpy())
-
-        msg = "Training Kernel: " + str(model.kernel_)
-        print(msg)
-        flightlog.write(msg+'\n')
- 
-        # store the model for reuse
-        with open(trained_model_file, "wb") as f:
-            pickle.dump(model, f)
-    else:
-        # We simply insert the input data into the kernel
-        with open(trained_model_file, "rb") as f:
-            model = pickle.load(f)
-    
-    # Predict and evaluate
-    meanf = my_predicts(model, datas.to_numpy())
-    meant = my_predicts(model, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-
-
-
-elif method == 'gpr.gpflow':
+    if 'gpr' in method:
+        minimise_GPR_LML(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(), trained_model_file, loss, casesetup, flightlog)
+    elif 'nn' in method:
+        minimise_NN_RMSE(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(), trained_model_file, loss, casesetup, flightlog)
+elif if_train_optim == 'diffusionloss':
     loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
+elif if_train_optim == 'nahimgood':
+    #just run
+    loss = None
 
-    if if_train_optim:
-        # Define the kernel parameters
-        vars = 1.**2.
-        lens = 1. #np.full(Ndimensions, 1.0)
-        pvar = 0.1
-
-        kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
-
-        # Define the optimizer
-        opt = gpflow.optimizers.Scipy()
-
-        # Set priors
-        gpflow.utilities.set_trainable(kernel.variance, False)
-        kernel.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(lens)), pvar
-        )
-
-        # Create the full GPR model
-        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
-        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(model.likelihood.variance, False)
-
-        # Optimize the full model
-        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=monitor, compile=True)
-
-        msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
-        print(msg)
-        flightlog.write(msg+'\n')
-
-        # store the model for reuse
-        with open(trained_model_file, "wb") as f:
-            pickle.dump(model, f)
-
-    else:
-        # We simply insert the input data into the kernel
-        with open(trained_model_file, "rb") as f:
-            model = pickle.load(f)
-
-    # store the posterior for faster prediction
-    posterior_gpr = model.posterior()
-
-    # Predict and evaluate
-    meanf = my_predicts(posterior_gpr, datas.to_numpy())
-    meant = my_predicts(posterior_gpr, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-    write_predicts_file(dafolder, testso, testf, meant)
-
-
-
-elif method == 'gpr.gpytorch':
-    loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pth')
-
-    if if_train_optim:
-        # Convert data to torch tensors
-        train_x = torch.tensor(datas.to_numpy())
-        train_y = torch.tensor(dataf.to_numpy())
-
-        # Define the model
-        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
-        model = GPRegressionModel(train_x, train_y, likelihood)
-
-        # set the mode to training
-        model.train()
-        likelihood.train()
-
-        # Use Adam, hey Adam, me again, an apple
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
-
-        # "Loss" for GPs - the marginal log likelihood
-        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-        for i in range(gpytorch_options['maxiter']):
-            # Zero gradients from previous iteration
-            optimizer.zero_grad()
-            # Output from model
-            output = model(train_x)
-            # Calc loss and backprop gradients
-            opt_loss = -mll(output, train_y)
-            opt_loss.backward()
-            loss.append(opt_loss.item())
-            optimizer.step()
-
-        msg = "Lengthscale: " + str(model.covar_module.base_kernel.lengthscale.squeeze().tolist()) + "\n" \
-            + "Variance: " + str(model.covar_module.outputscale.item()) + "\n"
-
-        print(msg)
-        flightlog.write(msg)
-
-        # store the model for reuse
-        torch.save((model, likelihood), trained_model_file)
-
-    else:
-        # We simply insert the input data into the kernel
-        model, likelihood = torch.load(trained_model_file, weights_only=False)
-
-    # set the mode to eval
-    model.eval()
-    likelihood.eval()
-
-    # Predict and evaluate
-    meanf = my_predicts(model, datas.to_numpy())
-    meant = my_predicts(model, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-
-
-
-elif method == 'nn.tf':
-    loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
-
-    if if_train_optim:
-        input_shape = datas.to_numpy().shape[1:]
-
-        # Setup the neural network
-        model = keras.Sequential(
-            [layers.Input(shape=input_shape)] +
-            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in keras_options["hidden_layers"]] +
-            [layers.Dense(1)]
-            )
-
-        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
-
-        history = model.fit(
-            datas.to_numpy(),
-            dataf.to_numpy(),
-            verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
-            )
-        loss = np.log(history.history['loss'])
-
-        # store the model for reuse
-        model.save(trained_model_file)
-    
-    else:
-        # We simply insert the input data into the kernel
-        model = tf.keras.models.load_model(trained_model_file)
-
-    # Predict and evaluate
-    meanf = my_predicts(model, datas.to_numpy())
-    meant = my_predicts(model, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-
-
-
-elif method == 'at.tf':
-    loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
-
-    if if_train_optim:
-        input_shape = datas.to_numpy().shape[1:]
-    
-        # Setup the neural network
-        inputs = layers.Input(shape=input_shape)
-
-        # Apply Multi-Head Attention
-        re_inputs = ExpandALayer()(inputs)
-        attention_output = layers.MultiHeadAttention(num_heads=keras_options["multiheadattention_setup"]["num_heads"], key_dim=Ndimensions)(re_inputs, re_inputs)
-        output = SqueezeALayer()(attention_output)
-
-        # Fully connected layers
-        for nn in keras_options["hidden_layers"]:
-            output = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(output)
-        output = layers.Dense(1)(output)
-
-        # Create model
-        model = keras.models.Model(inputs=inputs, outputs=output)
-
-        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
-
-        history = model.fit(
-            datas.to_numpy(),
-            dataf.to_numpy(),
-            verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
-            )
-        loss = np.log(history.history['loss'])
-
-        # store the model for reuse
-        model.save(trained_model_file)
-    
-    else:
-        # We simply insert the input data into the kernel
-        model = tf.keras.models.load_model(trained_model_file)
-
-    # Predict and evaluate
-    meanf = my_predicts(model, datas.to_numpy())
-    meant = my_predicts(model, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-
+# Predict and evaluate
+meanf = my_predicts(model, datas.to_numpy())
+meant = my_predicts(model, tests.to_numpy())
+flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
+write_predicts_file(dafolder, testso, testf, meant)
 
 
 
