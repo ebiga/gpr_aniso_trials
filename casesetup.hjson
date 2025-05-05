@@ -15,8 +15,12 @@ select_dimension: '3D'
 #  'nn.attention': Neural Network by tensorflow/keras with an Attention layer
 method: 'gpr.gpflow'
 
-# let the hyperparameters by optmised? otherwise, read a pre-saved model
-if_train_optim: true
+# let the hyperparameters by optimised by a few methods, or just run, or just restart
+#  'conventional': LML for GPR, RMSE for NN
+#  'diffusionloss': my method :)
+#  'nahimgood': just dry run a model, no optimisation
+#  'restart': read a presaved model
+if_train_optim: 'conventional'
 
 # output figure format: eps, png
 fig_format: eps
