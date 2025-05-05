@@ -55,15 +55,13 @@ def generate_gpflow_kernel_code(kernel):
 
 
 ## Reshape due to csv XY and my lovely IJ orders
-def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid, select_dimension):
+def reshape_flatarray_like_reference_meshgrid(offending_array, ashape, select_dimension):
     # the csv comes in the reversed order of the IJ mesh grid
-    reversed_shape = goodguy_meshgrid.shape[::-1]
-
     # the flattened array is reshaped into its mesh shape than tranposed to the IJ shape
     if select_dimension == '3D':
-        return offending_array.reshape(reversed_shape).transpose(2, 1, 0)
-    else:
-        return offending_array.reshape(reversed_shape).transpose()
+        return offending_array.reshape(ashape).transpose(2, 1, 0)
+    elif select_dimension == '2D':
+        return offending_array.reshape(ashape).transpose()
 
 
 
@@ -103,7 +101,7 @@ def my_predicts(model, X):
     elif "gpflow" in module:
         return model.predict_f(X)[0].numpy().reshape(-1)
     
-    elif "tensorflow" in module or "keras" in module:  # TensorFlow/Keras
+    elif "tensorflow" in module or "keras" in module:
         return model.predict(X).reshape(-1)
     
     else:

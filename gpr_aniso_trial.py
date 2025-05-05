@@ -38,6 +38,7 @@ from gpflow.monitor import Monitor, MonitorTaskGroup
 from auxfunctions import *
 from auxgpytorch  import *
 from optimme      import *
+from diffusionme  import *
 
 # set floats and randoms
 gpflow.config.set_default_float('float64')
@@ -54,71 +55,6 @@ torch.manual_seed(42)
 
 ### IMPORTANT SHIZ
 
-## FUNCTION: Compute Laplacians for 2D and 3D, cell centred, for normal or staggered meshes
-#_ The Laplacians are computed along the diagonals, so we can have only one staggered mesh
-#_ It's never enough any effort to make life easier...
-def compute_Laplacian(f_orig, f_stag):
-
-    if f_orig is not f_stag:
-        # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
-        #_ We compute the Laplacian with a 5-point stencil
-        grid_spacing = 0.5
-
-        if select_dimension == '3D':
-            delta = 3. * grid_spacing**2.
-
-            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - f_stag[1:  ,1:  ,1:  ] - f_stag[ :-1, :-1, :-1]) \
-                           / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + f_stag[1:  ,1:  ,1:  ] + f_stag[ :-1, :-1, :-1]) / (3.*delta)
-            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - f_stag[ :-1,1:  ,1:  ] - f_stag[1:  , :-1, :-1]) \
-                           / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + f_stag[ :-1,1:  ,1:  ] + f_stag[1:  , :-1, :-1]) / (3.*delta)
-            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - f_stag[1:  , :-1,1:  ] - f_stag[ :-1,1:  , :-1]) \
-                           / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + f_stag[1:  , :-1,1:  ] + f_stag[ :-1,1:  , :-1]) / (3.*delta)
-            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - f_stag[1:  ,1:  , :-1] - f_stag[ :-1, :-1,1:  ]) \
-                           / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + f_stag[1:  ,1:  , :-1] + f_stag[ :-1, :-1,1:  ]) / (3.*delta)
-
-            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
-
-        else:
-            delta = 2. * grid_spacing**2.
-
-            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - f_stag[1:  ,1:] - f_stag[ :-1,:-1]) \
-                           / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + f_stag[1:  ,1:] + f_stag[ :-1,:-1]) / (3.*delta)
-            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - f_stag[ :-1,1:] - f_stag[1:  ,:-1]) \
-                           / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + f_stag[ :-1,1:] + f_stag[1:  ,:-1]) / (3.*delta)
-
-            return dsf_dD1s + dsf_dD2s
-
-    else:
-        # This is the original training mesh processing, fstag = f_orig
-        #_ We apply a 3-point stencil to compute the Laplacian
-        grid_spacing = 1.
-
-        if select_dimension == '3D':
-            delta = 3. * grid_spacing**2.
-
-            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-
-            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
-
-        else:
-            delta = 2. * grid_spacing**2.
-
-            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - 2. * f_orig[1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
-            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - 2. * f_orig[1:-1,1:-1]) \
-                           / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
-
-            return dsf_dD1s + dsf_dD2s
-
-
-
 ## FUNCTION: Just creates a model filename
 def model_filename(method, dafolder):
     if method == 'gpr.scikit':
@@ -133,7 +69,6 @@ def model_filename(method, dafolder):
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
 
     return trained_model_file
-
 
 
 ## FUNCTION: Setup the model to be run and the file to save it
@@ -358,9 +293,14 @@ elif select_dimension == '2D':
 
     staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel()]
 
+
+# We'll need the shapes for managing in and out of the IJ meshgrid in the reversed order
+shape_train_mesh = XXX.shape[::-1]
+shape_stagg_mesh = np.shape(vertexmesh_X)
+
 # Store the reference Laplacian metric
-DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), XXX, select_dimension)
-laplacian_dataf = compute_Laplacian(DDD, DDD)
+DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), shape_train_mesh, select_dimension)
+laplacian_dataf = compute_Laplacian(DDD, DDD, select_dimension)
 
 
 
@@ -384,6 +324,7 @@ if if_train_optim == 'conventional':
         minimise_NN_RMSE(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(), trained_model_file, loss, casesetup, flightlog)
 elif if_train_optim == 'diffusionloss':
     loss = []
+    minimise_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts, select_dimension, shape_train_mesh, shape_stagg_mesh, loss, casesetup)
 elif if_train_optim == 'nahimgood':
     #just run
     loss = None
@@ -550,7 +491,7 @@ for k, v in enumerate(param3_cases):
 # Laplacians
 #_ Build the staggered mesh info to plot and write out the RMSE
 predf = my_predicts(model, datas.to_numpy())
-predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, XXX, select_dimension)
+predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, shape_train_mesh, select_dimension)
 
 predf_staggered = my_predicts(model, staggeredpts)
 predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
