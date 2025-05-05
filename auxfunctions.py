@@ -21,7 +21,7 @@ torch.manual_seed(42)
 
 
 
-# Function to write out gpflow kernel params for the future
+## Function to write out gpflow kernel params for the future
 def generate_gpflow_kernel_code(kernel):
     def kernel_to_code(k):
         # Handle kernel combinations (Sum, Product)
@@ -54,7 +54,7 @@ def generate_gpflow_kernel_code(kernel):
 
 
 
-# Reshape due to csv XY and my lovely IJ orders
+## Reshape due to csv XY and my lovely IJ orders
 def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid, select_dimension):
     # the csv comes in the reversed order of the IJ mesh grid
     reversed_shape = goodguy_meshgrid.shape[::-1]
@@ -68,7 +68,7 @@ def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid,
 
 
 
-# Write predicts out
+## Write predicts out
 def write_predicts_file(location, params_in, func_in, func_pred):
     predfile = pd.DataFrame(params_in)
     predfile['f'] = func_in
@@ -78,7 +78,7 @@ def write_predicts_file(location, params_in, func_in, func_pred):
 
 
 
-# Compute the rms of the mean
+## Compute the rms of the mean
 def check_mean(atest, mean, refd):
     delta = refd - mean
 
@@ -93,7 +93,7 @@ def check_mean(atest, mean, refd):
 
 
 
-# My wrapper of predict functions
+## My wrapper of predict functions
 def my_predicts(model, X):
     module = type(model).__module__
     
