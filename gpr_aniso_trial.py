@@ -11,6 +11,13 @@ import matplotlib
 matplotlib.use('TkAgg')
 matplotlib.set_loglevel('critical')
 
+matplotlib.rcParams['font.family'] = 'serif'
+matplotlib.rcParams['xtick.labelsize'] = 14
+matplotlib.rcParams['ytick.labelsize'] = 14
+matplotlib.rcParams['axes.titlesize']  = 16
+matplotlib.rcParams['axes.labelsize']  = 16
+matplotlib.rcParams['legend.fontsize'] = 14
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
