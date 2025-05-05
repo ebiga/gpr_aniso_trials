@@ -37,7 +37,7 @@ tf.keras.backend.set_floatx('float64')
 torch.set_default_dtype(torch.float64)
 
 tf.random.set_seed(42)
-keras.utils.set_random_seed(42)
+tf.keras.utils.set_random_seed(42)
 torch.manual_seed(42)
 
 

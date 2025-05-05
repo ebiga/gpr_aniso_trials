@@ -5,34 +5,17 @@ import pandas as pd
 import sklearn
 import silence_tensorflow.auto
 import gpflow
-import pickle
-import time
 import torch
 import gpytorch
-import matplotlib
-matplotlib.use('TkAgg')
-matplotlib.set_loglevel('critical')
 
-import matplotlib.pyplot as plt
-import gpflow.utilities as gputil
 import tensorflow as tf
-import tensorflow_probability as tfp
-import seaborn as sns
-
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel
-from matplotlib import cm
-from matplotlib.lines import Line2D
-from tensorflow import keras
-from keras import layers, saving
-from gpflow.monitor import Monitor, MonitorTaskGroup
 
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
 torch.set_default_dtype(torch.float64)
 
 tf.random.set_seed(42)
-keras.utils.set_random_seed(42)
+tf.keras.utils.set_random_seed(42)
 torch.manual_seed(42)
 
 
