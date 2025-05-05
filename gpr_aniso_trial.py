@@ -1,7 +1,5 @@
 import os
 import hjson
-import numpy as np
-import pandas as pd
 import sklearn
 import silence_tensorflow.auto
 import gpflow
@@ -13,6 +11,8 @@ import matplotlib
 matplotlib.use('TkAgg')
 matplotlib.set_loglevel('critical')
 
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import gpflow.utilities as gputil
 import tensorflow as tf
@@ -27,6 +27,11 @@ from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
 
+# get my functions
+from auxfunctions import *
+from auxgpytorch  import *
+
+# set floats and randoms
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
 torch.set_default_dtype(torch.float64)
@@ -37,48 +42,9 @@ torch.manual_seed(42)
 
 
 
-# Function to write out gpflow kernel params for the future
-def generate_gpflow_kernel_code(kernel):
-    def kernel_to_code(k):
-        # Handle kernel combinations (Sum, Product)
-        if isinstance(k, gpflow.kernels.Sum):
-            return " + ".join(kernel_to_code(sub_k) for sub_k in k.kernels)
-        elif isinstance(k, gpflow.kernels.Product):
-            return " * ".join(kernel_to_code(sub_k) for sub_k in k.kernels)
-        # Handle individual kernels (e.g., RBF, Constant, etc.)
-        params = []
-        # Extract parameter name and transformed value
-        #_ variance
-        param_nam = "var"
-        param_val = k.variance.numpy().round(decimals=3)
-        params.append(f"{param_nam}={param_val}")
-        #_ lenghtscales
-        param_nam = "len"
-        param_val = k.lengthscales.numpy().round(decimals=3)
-        params.append(f"{param_nam}={param_val}")
-        #_ alpha if so
-        if isinstance(k, gpflow.kernels.RationalQuadratic):
-            param_nam = "alpha"
-            param_val = k.alpha.numpy().round(decimals=3)
-            params.append(f"{param_nam}={param_val}")
-        # Construct kernel initialization code
-        kernel_name = type(k).__name__
-        return f"{kernel_name}({', '.join(params)})"
-    # Start recursive kernel generation
-    return kernel_to_code(kernel)
 
 
-# Reshape due to csv XY and my lovely IJ orders
-def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid):
-    # the csv comes in the reversed order of the IJ mesh grid
-    reversed_shape = goodguy_meshgrid.shape[::-1]
-
-    # the flattened array is reshaped into its mesh shape than tranposed to the IJ shape
-    if select_dimension == '3D':
-        return offending_array.reshape(reversed_shape).transpose(2, 1, 0)
-    else:
-        return offending_array.reshape(reversed_shape).transpose()
-
+### IMPORTANT SHIZ
 
 # Compute Laplacians for 2D and 3D, cell centred, for normal or staggered meshes
 #_ The Laplacians are computed along the diagonals, so we can have only one staggered mesh
@@ -144,80 +110,11 @@ def compute_Laplacian(f_orig, f_stag):
             return dsf_dD1s + dsf_dD2s
 
 
-# Write predicts out
-def write_predicts_file(location, params_in, func_in, func_pred):
-    predfile = pd.DataFrame(params_in)
-    predfile['f'] = func_in
-    predfile['f_pred'] = func_pred
-    predfile.to_csv(os.path.join(location, 'test_data_out.csv'), index=False)
-
-
-# Compute the rms of the mean
-def check_mean(atest, mean, refd):
-    delta = refd - mean
-
-    rms_check = np.sqrt( np.mean( delta**2. ) )
-    mae_check = np.mean( np.abs(delta) )
-    max_check = np.max( np.abs(delta) )
-
-    msg = atest + " errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
-    print(msg)
-    return msg
-
-
-# My wrapper of predict functions
-def my_predicts(model, X):
-    module = type(model).__module__
-    
-    if "sklearn" in module:
-        return model.predict(X, return_cov=False)
-    
-    elif "gpflow" in module:
-        return model.predict_f(X)[0].numpy().reshape(-1)
-    
-    elif "tensorflow" in module or "keras" in module:  # TensorFlow/Keras
-        return model.predict(X).reshape(-1)
-    
-    else:
-        if isinstance(model, gpytorch.models.GP):
-            model.eval()
-            with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                return model(torch.tensor(X)).mean.detach().numpy()
-        else:
-            raise TypeError(f"Unsupported model type: {type(model)}")
-
-
-# GPYTorch loves a class, doesn't it
-class GPRegressionModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood):
-        super(GPRegressionModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=Ndimensions, lengthscale=torch.tensor(np.full(Ndimensions, 1.0))), outputscale=1.0**2)
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Class necessary to expand the input layer shape for the multiheadattention
-@saving.register_keras_serializable()
-class ExpandALayer(layers.Layer): 
-    def call(self, x):
-        return tf.expand_dims(x, axis=1)
-
-# Class necessary to squeeze back the output shape of the multiheadattention
-@saving.register_keras_serializable()
-class SqueezeALayer(layers.Layer):
-    def call(self, x):
-        return tf.squeeze(x, axis=1)
-
-
-
-
 
 
 
 ### USER OPTIONS
+
 start_time = time.time()
 
 with open('./casesetup.hjson', 'r') as casesetupfile:
@@ -238,6 +135,7 @@ dafolder = method + "_" + select_dimension + "_" + select_input_size
 os.makedirs(dafolder, exist_ok=True)
 
 flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
+
 
 
 
@@ -363,8 +261,9 @@ elif select_dimension == '2D':
     staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel()]
 
 # Store the reference Laplacian metric
-DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), XXX)
+DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), XXX, select_dimension)
 laplacian_dataf = compute_Laplacian(DDD, DDD)
+
 
 
 
@@ -605,6 +504,7 @@ elif method == 'at.tf':
 
 
 
+
 ### PLOTTING
 
 # training convergence
@@ -753,7 +653,7 @@ for k, v in enumerate(param3_cases):
 # Laplacians
 #_ Build the staggered mesh info to plot and write out the RMSE
 predf = my_predicts(model, datas.to_numpy())
-predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, XXX)
+predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, XXX, select_dimension)
 
 predf_staggered = my_predicts(model, staggeredpts)
 predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
