@@ -112,24 +112,37 @@ def compute_Laplacian(f_orig, f_stag):
 
 
 
+## FUNCTION: Just creates a model filename
+def model_filename(method, dafolder):
+    if method == 'gpr.scikit':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
+    elif method == 'gpr.gpflow':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
+    elif method == 'gpr.gpytorch':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pth')
+    elif method == 'nn.dense':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
+    elif method == 'nn.attention':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
+
+    return trained_model_file
+
+
+
 ## FUNCTION: Setup the model to be run and the file to save it
 def get_me_a_model(method, DATAX, DATAF):
 
     if method == 'gpr.scikit':
-        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
-
         # Define the kernel parameters
         kernel = 1.**2 * RBF(length_scale=np.full(Ndimensions, 1.0))
 
         # Setup the model
         model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
 
-        return model, None, trained_model_file
+        return model, None
 
 
     elif method == 'gpr.gpflow':
-        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
-
         # Define the kernel parameters
         vars = 1.**2.
         lens = 1. #np.full(Ndimensions, 1.0)
@@ -150,12 +163,10 @@ def get_me_a_model(method, DATAX, DATAF):
         model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
         gpflow.set_trainable(model.likelihood.variance, False)
 
-        return model, model.likelihood, trained_model_file
+        return model, model.likelihood
 
 
     elif method == 'gpr.gpytorch':
-        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pth')
-
         train_x = torch.tensor(DATAX)
         train_y = torch.tensor(DATAF)
 
@@ -167,12 +178,10 @@ def get_me_a_model(method, DATAX, DATAF):
         model.train()
         likelihood.train()
 
-        return model, likelihood, trained_model_file
+        return model, likelihood
 
 
     elif method == 'nn.dense':
-        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
-
         # Setup the neural network
         input_shape = DATAX.shape[1:]
 
@@ -182,12 +191,10 @@ def get_me_a_model(method, DATAX, DATAF):
             [layers.Dense(1)]
             )
 
-        return model, None, trained_model_file
+        return model, None
 
 
     elif method == 'nn.attention':
-        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
-        
         # Setup the neural network
         input_shape = DATAX.shape[1:]
         inputs = layers.Input(shape=input_shape)
@@ -205,7 +212,7 @@ def get_me_a_model(method, DATAX, DATAF):
         # Create model
         model = keras.models.Model(inputs=inputs, outputs=output)
 
-        return model, None, trained_model_file
+        return model, None
 
 
 
@@ -354,8 +361,12 @@ laplacian_dataf = compute_Laplacian(DDD, DDD)
 
 ### TRAIN THE MODELS
 
+trained_model_file = model_filename(method, dafolder)
+
+
 # We need to build a model first
-model, likelihood, trained_model_file = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
+model, likelihood = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
+
 
 # Now we decide what to do with it
 if if_train_optim == 'conventional':
@@ -369,6 +380,10 @@ elif if_train_optim == 'diffusionloss':
 elif if_train_optim == 'nahimgood':
     #just run
     loss = None
+elif if_train_optim == 'restart':
+    #read in a saved model from trained_model_file
+    loss = None
+
 
 # Predict and evaluate
 meanf = my_predicts(model, datas.to_numpy())
