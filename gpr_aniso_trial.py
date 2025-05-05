@@ -494,9 +494,9 @@ predf = my_predicts(model, datas.to_numpy())
 predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, shape_train_mesh, select_dimension)
 
 predf_staggered = my_predicts(model, staggeredpts)
-predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
+predf_staggeredmesh = predf_staggered.reshape(shape_stagg_mesh)
 
-laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
+laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh, select_dimension)
 
 loss_m = np.sqrt(np.mean((laplacian_predf - laplacian_dataf)**2.))
 msg = f"RMSE of the Laplacians: {loss_m:.3e}"
