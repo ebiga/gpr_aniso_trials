@@ -240,8 +240,6 @@ flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
 
 ### DATA POINTS
 
-if_negative_param2 = False
-
 # TRAINING data
 #_ in three different sizes
 if select_input_size == 'full':
@@ -273,29 +271,17 @@ output = data_base.columns[-1]
 
 # Separate the data sets into breakpoints and outputs
 if select_dimension == '3D':
-    if if_negative_param2:
-        filtin = data_base.index
-    else:
-        filtin = data_base.loc[(data_base['param2'] >= 0)].index    
+    filtin = data_base.index
 elif select_dimension == '2D':
-    if if_negative_param2:
-        filtin = data_base.loc[(data_base['param3'] == param3fix)].index
-    else:
-        filtin = data_base.loc[(data_base['param3'] == param3fix) & (data_base['param2'] >= 0)].index
+    filtin = data_base.loc[(data_base['param3'] == param3fix)].index
 
 dataso = data_base.loc[filtin][brkpts].astype(np.float64)
 dataf  = data_base.loc[filtin][output].astype(np.float64)
 
 if select_dimension == '3D':
-    if if_negative_param2:
-        filtin = test_base.index
-    else:
-        filtin = test_base.loc[(test_base['param2'] >= 0)].index    
+    filtin = test_base.index
 elif select_dimension == '2D':
-    if if_negative_param2:
-        filtin = test_base.loc[(test_base['param3'] == param3fix)].index
-    else:
-        filtin = test_base.loc[(test_base['param3'] == param3fix) & (test_base['param2'] >= 0)].index
+    filtin = test_base.loc[(test_base['param3'] == param3fix)].index
 
 testso = test_base.loc[filtin][brkpts].astype(np.float64)
 testf  = test_base.loc[filtin][output].astype(np.float64)
