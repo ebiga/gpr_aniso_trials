@@ -77,9 +77,12 @@ def get_me_a_model(method, DATAX, DATAF):
     ## Input model parameters
     #_ Define kernel parameters for GPRs
     if 'gpr' in method:
-        vars = 0.15**2.
+        #_ variance
+        vars, _ = kernel_variance_whatabouts(casesetup)
+
+        #_ lengthscale
         lens = 1. # np.full(Ndimensions, 1.0)
-    
+
     #_ Define nn parameters for... well, NNs
     if 'nn' in method:
         nn_layers = casesetup['keras_setup']["hidden_layers"]

@@ -103,7 +103,7 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
 
 
 ## FUNCTION: update kernel parameters
-def update_kernel_params(model, new_lengthscale, new_variance):
+def update_kernel_params(model, new_lengthscale, new_variance=None):
     module = type(model).__module__
     
     if "sklearn" in module:
@@ -111,7 +111,7 @@ def update_kernel_params(model, new_lengthscale, new_variance):
     
     elif "gpflow" in module:
         model.kernel.lengthscales.assign(new_lengthscale)
-        model.kernel.variance.assign(new_variance)    
+        if new_variance: model.kernel.variance.assign(new_variance)    
 
     else:
         if isinstance(model, gpytorch.models.GP):
@@ -126,16 +126,29 @@ bound = scipy.optimize.Bounds(0.005,500.)
 
 def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension, shape_train_mesh, shape_stagg_mesh, histories, casesetup):
 
-    # get the user inputs from Jason
-    gpflow_options = casesetup['GPR_setup']['diffusionloss_minimise_setup']
+    ## Get the user inputs from Jason
+    #_ Optimiser options
+    optim_options = casesetup['GPR_setup']['diffusionloss_minimise_setup']
 
-    # A function to run a single combination of the hyperparameter grids
+    #_ Kernel variance
+    vars, if_train_variance = kernel_variance_whatabouts(casesetup)
+
+
+    ## A function to run a single combination of the hyperparameter grids
     #_ Option to run a KFold cross validation or direct "grid search"
     def evaluate_trial(x, model):
 
+
+        # Update the kernel with the optimisation variables
         lens = x[0]
-        vars = 1.
+
+        if if_train_variance:
+            vars = x[1]
+        else:
+            vars = None
+        
         update_kernel_params(model, lens, vars)
+
 
         # Estimate the loss metric at the staggered mesh
         #_ Training loss
@@ -159,5 +172,10 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
 
 
     # Optimizesss
+    if if_train_variance:
+        x0 = [1., vars]
+    else:
+        x0 = [1.]
+
     res = scipy.optimize.minimize(evaluate_trial, x0, args=(model,), method='COBYQA', bounds=bound, options=optim_options)
 

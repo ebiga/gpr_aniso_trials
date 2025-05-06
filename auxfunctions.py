@@ -111,3 +111,24 @@ def my_predicts(model, X):
                 return model(torch.tensor(X)).mean.detach().numpy()
         else:
             raise TypeError(f"Unsupported model type: {type(model)}")
+
+
+
+
+## Will define what to do with the kernel variance
+def kernel_variance_whatabouts(jsonfile):
+
+    # Get either a false or a value
+    kernel_variance = jsonfile['GPR_setup']['kernel_variance']
+
+    if kernel_variance:
+        # Variance is fixed
+        vars = kernel_variance**2.
+        if_train_variance = False
+
+    else:
+        # Variance will be optimised, we chose to start from 1
+        vars = 1.
+        if_train_variance = True
+
+    return vars, if_train_variance
