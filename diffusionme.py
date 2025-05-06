@@ -159,6 +159,5 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
 
 
     # Optimizesss
-    x0 = [1.]
-    res = scipy.optimize.minimize(evaluate_trial, x0, args=(model,), method='COBYQA', jac='3-point', bounds=bound, options=gpflow_options)
+    res = scipy.optimize.minimize(evaluate_trial, x0, args=(model,), method='COBYQA', bounds=bound, options=optim_options)
 
