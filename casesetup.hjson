@@ -1,7 +1,7 @@
 
 # there are four sizes to pick from:
 #  full, mid, small, tiny
-select_input_size: 'small'
+select_input_size: 'tiny'
 
 # you can run the full 3D case or a 2D slice at mid param3
 #  2D, 3D
@@ -10,31 +10,53 @@ select_dimension: '3D'
 # fitting methods available:
 #  'gpr.scikit': GPR by scikit-learn
 #  'gpr.gpflow': GPR by GPFlow
-#  'gpr.gpytorch' (not available)
-#  'nn.tf': Neural network by tensorflow/keras
-#  'at.tf': Neural network by tensorflow/keras with an attention layer
-method: 'gpr.gpytorch'
+#  'gpr.gpytorch' GPR by GPYTorch
+#  'nn.dense': Neural Network by tensorflow/keras usual Dense
+#  'nn.attention': Neural Network by tensorflow/keras with an Attention layer
+method: 'gpr.gpflow'
 
-# let the hyperparameters by optmised? otherwise, read a pre-saved model
-if_train_optim: true
+# let the hyperparameters by optimised by a few methods, or just run, or just restart
+#  'conventional': LML for GPR, RMSE for NN
+#  'diffusionloss': my method :)
+#  'nahimgood': just dry run a model, no optimisation
+#  'restart': read a presaved model
+if_train_optim: 'conventional'
 
 # output figure format: eps, png
 fig_format: eps
 
 # GPR scikit options
-scikit_setup:
+GPR_setup:
 {
-    n_restarts_optimizer: 3
-}
+    # Set to false if you want it optimised, otherwise give it a value (it will be squared)
+    kernel_variance: 0.15
 
-# GPR GPFlow options
-gpflow_setup:
-{
-    optimiser:
+    # Scikit options
+    scikit_setup:
+    {
+        n_restarts_optimizer: 3
+    }
+
+    # GPFlow options
+    gpflow_setup:
     {
         maxiter: 1500,
         gtol: 1e-9,
         ftol: 1e-9,
+    }
+
+    # GPYTorch options
+    gpytorch_setup:
+    {
+        maxiter: 750,
+    }
+
+    # Diffusion-loss optimizer options
+    diffusionloss_minimise_setup:
+    {
+        maxiter: 1500,
+        final_tr_radius: 1e-9,
+        initial_tr_radius: 3,
     }
 }
 
@@ -51,10 +73,4 @@ keras_setup:
     {
         num_heads: 2
     }
-}
-
-# GPR GPYtorch options
-gpytorch_setup:
-{
-    maxiter: 750,
 }

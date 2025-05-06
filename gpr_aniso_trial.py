@@ -1,7 +1,5 @@
 import os
 import hjson
-import numpy as np
-import pandas as pd
 import sklearn
 import silence_tensorflow.auto
 import gpflow
@@ -13,6 +11,15 @@ import matplotlib
 matplotlib.use('TkAgg')
 matplotlib.set_loglevel('critical')
 
+matplotlib.rcParams['font.family'] = 'serif'
+matplotlib.rcParams['xtick.labelsize'] = 14
+matplotlib.rcParams['ytick.labelsize'] = 14
+matplotlib.rcParams['axes.titlesize']  = 16
+matplotlib.rcParams['axes.labelsize']  = 16
+matplotlib.rcParams['legend.fontsize'] = 14
+
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import gpflow.utilities as gputil
 import tensorflow as tf
@@ -27,197 +34,176 @@ from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
 
+# get my functions
+from auxfunctions import *
+from auxgpytorch  import *
+from optimme      import *
+from diffusionme  import *
+
+# set floats and randoms
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
 torch.set_default_dtype(torch.float64)
 
 tf.random.set_seed(42)
-keras.utils.set_random_seed(42)
+tf.keras.utils.set_random_seed(42)
 torch.manual_seed(42)
 
 
 
-# Function to write out gpflow kernel params for the future
-def generate_gpflow_kernel_code(kernel):
-    def kernel_to_code(k):
-        # Handle kernel combinations (Sum, Product)
-        if isinstance(k, gpflow.kernels.Sum):
-            return " + ".join(kernel_to_code(sub_k) for sub_k in k.kernels)
-        elif isinstance(k, gpflow.kernels.Product):
-            return " * ".join(kernel_to_code(sub_k) for sub_k in k.kernels)
-        # Handle individual kernels (e.g., RBF, Constant, etc.)
-        params = []
-        # Extract parameter name and transformed value
+
+
+### IMPORTANT SHIZ
+
+## FUNCTION: Just creates a model filename
+def model_filename(method, dafolder):
+    if method == 'gpr.scikit':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
+    elif method == 'gpr.gpflow':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
+    elif method == 'gpr.gpytorch':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pth')
+    elif method == 'nn.dense':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
+    elif method == 'nn.attention':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
+
+    return trained_model_file
+
+
+## FUNCTION: Just loads a model file
+def load_model_from_file(method, trained_model_file):
+    likelihood = None
+
+    if '.pkl' in trained_model_file:
+        with open(trained_model_file, "rb") as f:
+            model = pickle.load(f)
+
+    elif '.keras' in trained_model_file:
+        model = tf.keras.models.load_model(trained_model_file)
+
+    elif method == 'gpr.gpytorch':
+        model, likelihood = torch.load(trained_model_file, weights_only=False)
+
+    return model, likelihood
+
+
+## FUNCTION: Setup the model to be run and the file to save it
+def get_me_a_model(method, DATAX, DATAF):
+
+    ## Input model parameters
+    #_ Define kernel parameters for GPRs
+    if 'gpr' in method:
         #_ variance
-        param_nam = "var"
-        param_val = k.variance.numpy().round(decimals=3)
-        params.append(f"{param_nam}={param_val}")
-        #_ lenghtscales
-        param_nam = "len"
-        param_val = k.lengthscales.numpy().round(decimals=3)
-        params.append(f"{param_nam}={param_val}")
-        #_ alpha if so
-        if isinstance(k, gpflow.kernels.RationalQuadratic):
-            param_nam = "alpha"
-            param_val = k.alpha.numpy().round(decimals=3)
-            params.append(f"{param_nam}={param_val}")
-        # Construct kernel initialization code
-        kernel_name = type(k).__name__
-        return f"{kernel_name}({', '.join(params)})"
-    # Start recursive kernel generation
-    return kernel_to_code(kernel)
+        vars, if_train_variance = kernel_variance_whatabouts(casesetup)
+
+        #_ lengthscale
+        lens = 1. # np.full(Ndimensions, 1.0)
+
+    #_ Define nn parameters for... well, NNs
+    if 'nn' in method:
+        nn_layers = casesetup['keras_setup']["hidden_layers"]
 
 
-# Reshape due to csv XY and my lovely IJ orders
-def reshape_flatarray_like_reference_meshgrid(offending_array, goodguy_meshgrid):
-    # the csv comes in the reversed order of the IJ mesh grid
-    reversed_shape = goodguy_meshgrid.shape[::-1]
+    ## Each method has its own ways
+    #_ GPR: Scikit-learn
+    if method == 'gpr.scikit':
+        # Set priors: fix what we don't want to optimise
+        if not if_train_variance: print('uh....')
 
-    # the flattened array is reshaped into its mesh shape than tranposed to the IJ shape
-    if select_dimension == '3D':
-        return offending_array.reshape(reversed_shape).transpose(2, 1, 0)
-    else:
-        return offending_array.reshape(reversed_shape).transpose()
+        # Get a kernel
+        kernel = vars * RBF(length_scale=lens)
 
+        # Setup the model
+        n_restarts_optimizer = casesetup['GPR_setup']['scikit_setup']['n_restarts_optimizer']
+        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
 
-# Compute Laplacians for 2D and 3D, cell centred, for normal or staggered meshes
-#_ The Laplacians are computed along the diagonals, so we can have only one staggered mesh
-#_ It's never enough any effort to make life easier...
-def compute_Laplacian(f_orig, f_stag):
+        return model, None
 
-    if f_orig is not f_stag:
-        # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
-        #_ We compute the Laplacian with a 5-point stencil
-        grid_spacing = 0.5
+    #_ GPR: GPFlow
+    elif method == 'gpr.gpflow':
+        # Get a kernel
+        kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
-        if select_dimension == '3D':
-            delta = 3. * grid_spacing**2.
+        # Set priors: fix what we don't want to optimise
+        if not if_train_variance: gpflow.utilities.set_trainable(kernel.variance, False)
 
-            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - f_stag[1:  ,1:  ,1:  ] - f_stag[ :-1, :-1, :-1]) \
-                           / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + f_stag[1:  ,1:  ,1:  ] + f_stag[ :-1, :-1, :-1]) / (3.*delta)
-            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - f_stag[ :-1,1:  ,1:  ] - f_stag[1:  , :-1, :-1]) \
-                           / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + f_stag[ :-1,1:  ,1:  ] + f_stag[1:  , :-1, :-1]) / (3.*delta)
-            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - f_stag[1:  , :-1,1:  ] - f_stag[ :-1,1:  , :-1]) \
-                           / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + f_stag[1:  , :-1,1:  ] + f_stag[ :-1,1:  , :-1]) / (3.*delta)
-            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - f_stag[1:  ,1:  , :-1] - f_stag[ :-1, :-1,1:  ]) \
-                           / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + f_stag[1:  ,1:  , :-1] + f_stag[ :-1, :-1,1:  ]) / (3.*delta)
+        # Set priors so the optimisation won't go wild
+        pvar = 0.3
+        kernel.lengthscales.prior = tfp.distributions.LogNormal(
+            tf.math.log(gpflow.utilities.to_default_float(lens)), pvar
+        )
 
-            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
+        # Create the full GPR model
+        model = gpflow.models.GPR(data=(DATAX, DATAF.reshape(-1,1)), kernel=kernel, noise_variance=None)
 
-        else:
-            delta = 2. * grid_spacing**2.
+        # GPflow requires us to build a likelihood, we want it noiseless and not trainable
+        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
+        gpflow.set_trainable(model.likelihood.variance, False)
 
-            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - f_stag[1:  ,1:] - f_stag[ :-1,:-1]) \
-                           / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + f_stag[1:  ,1:] + f_stag[ :-1,:-1]) / (3.*delta)
-            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - f_stag[ :-1,1:] - f_stag[1:  ,:-1]) \
-                           / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + f_stag[ :-1,1:] + f_stag[1:  ,:-1]) / (3.*delta)
+        return model, model.likelihood
 
-            return dsf_dD1s + dsf_dD2s
+    #_ GPR: GPYTorch
+    elif method == 'gpr.gpytorch':
+        train_x = torch.tensor(DATAX)
+        train_y = torch.tensor(DATAF)
 
-    else:
-        # This is the original training mesh processing, fstag = f_orig
-        #_ We apply a 3-point stencil to compute the Laplacian
-        grid_spacing = 1.
+        # Set priors: fix what we don't want to optimise
+        if not if_train_variance: print('uh....')
 
-        if select_dimension == '3D':
-            delta = 3. * grid_spacing**2.
+        # Define the model
+        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
+        model = GPRegressionModel(vars, lens, train_x, train_y, likelihood)
 
-            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+        # set the mode to training
+        model.train()
+        likelihood.train()
 
-            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
+        return model, likelihood
 
-        else:
-            delta = 2. * grid_spacing**2.
+    #_ NN, Dense
+    elif method == 'nn.dense':
+        # Setup the neural network
+        input_shape = DATAX.shape[1:]
 
-            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - 2. * f_orig[1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
-            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - 2. * f_orig[1:-1,1:-1]) \
-                           / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
+        model = keras.Sequential(
+            [layers.Input(shape=input_shape)] +
+            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in nn_layers] +
+            [layers.Dense(1)]
+            )
 
-            return dsf_dD1s + dsf_dD2s
+        return model, None
 
+    #_ NN with Attention
+    elif method == 'nn.attention':
+        # Setup the neural network
+        input_shape = DATAX.shape[1:]
+        inputs = layers.Input(shape=input_shape)
 
-# Write predicts out
-def write_predicts_file(location, params_in, func_in, func_pred):
-    predfile = pd.DataFrame(params_in)
-    predfile['f'] = func_in
-    predfile['f_pred'] = func_pred
-    predfile.to_csv(os.path.join(location, 'test_data_out.csv'), index=False)
+        # Apply Multi-Head Attention
+        re_inputs = ExpandALayer()(inputs)
 
+        num_heads = casesetup['keras_setup']["multiheadattention_setup"]["num_heads"]
+        attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
 
-# Compute the rms of the mean
-def check_mean(atest, mean, refd):
-    delta = refd - mean
+        output = SqueezeALayer()(attention_output)
 
-    rms_check = np.sqrt( np.mean( delta**2. ) )
-    mae_check = np.mean( np.abs(delta) )
-    max_check = np.max( np.abs(delta) )
+        # Fully connected layers
+        for nn in nn_layers:
+            output = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(output)
+        output = layers.Dense(1)(output)
 
-    msg = atest + " errors: rms, mean, max: " + f"\t{rms_check:.3e};\t {mae_check:.3e};\t {max_check:.3e}\n"
-    print(msg)
-    return msg
+        # Create model
+        model = keras.models.Model(inputs=inputs, outputs=output)
 
-
-# My wrapper of predict functions
-def my_predicts(model, X):
-    module = type(model).__module__
-    
-    if "sklearn" in module:
-        return model.predict(X, return_cov=False)
-    
-    elif "gpflow" in module:
-        return model.predict_f(X)[0].numpy().reshape(-1)
-    
-    elif "tensorflow" in module or "keras" in module:  # TensorFlow/Keras
-        return model.predict(X).reshape(-1)
-    
-    else:
-        if isinstance(model, gpytorch.models.GP):
-            model.eval()
-            with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                return model(torch.tensor(X)).mean.detach().numpy()
-        else:
-            raise TypeError(f"Unsupported model type: {type(model)}")
-
-
-# GPYTorch loves a class, doesn't it
-class GPRegressionModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood):
-        super(GPRegressionModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=Ndimensions, lengthscale=torch.tensor(np.full(Ndimensions, 1.0))), outputscale=1.0**2)
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Class necessary to expand the input layer shape for the multiheadattention
-@saving.register_keras_serializable()
-class ExpandALayer(layers.Layer): 
-    def call(self, x):
-        return tf.expand_dims(x, axis=1)
-
-# Class necessary to squeeze back the output shape of the multiheadattention
-@saving.register_keras_serializable()
-class SqueezeALayer(layers.Layer):
-    def call(self, x):
-        return tf.squeeze(x, axis=1)
-
-
+        return model, None
 
 
 
 
 
 ### USER OPTIONS
+
 start_time = time.time()
 
 with open('./casesetup.hjson', 'r') as casesetupfile:
@@ -227,10 +213,6 @@ select_dimension = casesetup['select_dimension']
 select_input_size = casesetup['select_input_size']
 method = casesetup['method']
 if_train_optim = casesetup['if_train_optim']
-gpflow_options = casesetup['gpflow_setup']['optimiser']
-keras_options = casesetup['keras_setup']
-gpytorch_options = casesetup['gpytorch_setup']
-n_restarts_optimizer = casesetup['scikit_setup']['n_restarts_optimizer']
 figformat = casesetup['fig_format']
 
 # file locations
@@ -242,9 +224,8 @@ flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
 
 
 
-### DATA POINTS
 
-if_negative_param2 = False
+### DATA POINTS
 
 # TRAINING data
 #_ in three different sizes
@@ -277,29 +258,17 @@ output = data_base.columns[-1]
 
 # Separate the data sets into breakpoints and outputs
 if select_dimension == '3D':
-    if if_negative_param2:
-        filtin = data_base.index
-    else:
-        filtin = data_base.loc[(data_base['param2'] >= 0)].index    
+    filtin = data_base.index
 elif select_dimension == '2D':
-    if if_negative_param2:
-        filtin = data_base.loc[(data_base['param3'] == param3fix)].index
-    else:
-        filtin = data_base.loc[(data_base['param3'] == param3fix) & (data_base['param2'] >= 0)].index
+    filtin = data_base.loc[(data_base['param3'] == param3fix)].index
 
 dataso = data_base.loc[filtin][brkpts].astype(np.float64)
 dataf  = data_base.loc[filtin][output].astype(np.float64)
 
 if select_dimension == '3D':
-    if if_negative_param2:
-        filtin = test_base.index
-    else:
-        filtin = test_base.loc[(test_base['param2'] >= 0)].index    
+    filtin = test_base.index
 elif select_dimension == '2D':
-    if if_negative_param2:
-        filtin = test_base.loc[(test_base['param3'] == param3fix)].index
-    else:
-        filtin = test_base.loc[(test_base['param3'] == param3fix) & (test_base['param2'] >= 0)].index
+    filtin = test_base.loc[(test_base['param3'] == param3fix)].index
 
 testso = test_base.loc[filtin][brkpts].astype(np.float64)
 testf  = test_base.loc[filtin][output].astype(np.float64)
@@ -338,269 +307,84 @@ if select_dimension == '3D':
     XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
     YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
     ZZ = np.unique( np.round(dataso['param3'], decimals=6) )/NormDlt[2] - NormMin[2]
-    XXX, YYY, ZZZ = np.meshgrid(XX, YY, ZZ, indexing='ij')
+
+    M_i, M_j, M_k = np.meshgrid(XX, YY, ZZ, indexing='ij')
 
     # staggered mesh
-    vertexmesh_X = ( XXX[:-1, :-1, :-1] + XXX[1:, :-1, :-1] + XXX[:-1, 1:, :-1] + XXX[1:, 1:, :-1]
-                   + XXX[:-1, :-1,1:  ] + XXX[1:, :-1,1:  ] + XXX[:-1, 1:,1:  ] + XXX[1:, 1:,1:  ]) / 8
-    vertexmesh_Y = ( YYY[:-1, :-1, :-1] + YYY[1:, :-1, :-1] + YYY[:-1, 1:, :-1] + YYY[1:, 1:, :-1]
-                   + YYY[:-1, :-1,1:  ] + YYY[1:, :-1,1:  ] + YYY[:-1, 1:,1:  ] + YYY[1:, 1:,1:  ]) / 8
-    vertexmesh_Z = ( ZZZ[:-1, :-1, :-1] + ZZZ[1:, :-1, :-1] + ZZZ[:-1, 1:, :-1] + ZZZ[1:, 1:, :-1]
-                   + ZZZ[:-1, :-1,1:  ] + ZZZ[1:, :-1,1:  ] + ZZZ[:-1, 1:,1:  ] + ZZZ[1:, 1:,1:  ]) / 8
+    staggeredpts_i = ( M_i[:-1, :-1, :-1] + M_i[1:, :-1, :-1] + M_i[:-1, 1:, :-1] + M_i[1:, 1:, :-1]
+                     + M_i[:-1, :-1,1:  ] + M_i[1:, :-1,1:  ] + M_i[:-1, 1:,1:  ] + M_i[1:, 1:,1:  ]) / 8.
+    staggeredpts_j = ( M_j[:-1, :-1, :-1] + M_j[1:, :-1, :-1] + M_j[:-1, 1:, :-1] + M_j[1:, 1:, :-1]
+                     + M_j[:-1, :-1,1:  ] + M_j[1:, :-1,1:  ] + M_j[:-1, 1:,1:  ] + M_j[1:, 1:,1:  ]) / 8.
+    staggeredpts_k = ( M_k[:-1, :-1, :-1] + M_k[1:, :-1, :-1] + M_k[:-1, 1:, :-1] + M_k[1:, 1:, :-1]
+                     + M_k[:-1, :-1,1:  ] + M_k[1:, :-1,1:  ] + M_k[:-1, 1:,1:  ] + M_k[1:, 1:,1:  ]) / 8.
 
-    staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel(), vertexmesh_Z.ravel()]
+    staggeredpts = np.c_[staggeredpts_i.ravel(), staggeredpts_j.ravel(), staggeredpts_k.ravel()]
 
 elif select_dimension == '2D':
 
     XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
     YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
-    XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
+
+    M_i, M_j = np.meshgrid(XX, YY, indexing='ij')
 
     # staggered mesh
-    vertexmesh_X = ( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] ) / 4
-    vertexmesh_Y = ( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] ) / 4
+    staggeredpts_i = ( M_i[:-1, :-1] + M_i[1:, :-1] + M_i[:-1, 1:] + M_i[1:, 1:] ) / 4.
+    staggeredpts_j = ( M_j[:-1, :-1] + M_j[1:, :-1] + M_j[:-1, 1:] + M_j[1:, 1:] ) / 4.
 
-    staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel()]
+    staggeredpts = np.c_[staggeredpts_i.ravel(), staggeredpts_j.ravel()]
+
+
+# We'll need the shapes for managing in and out of the IJ meshgrid in the reversed order
+shape_train_mesh = M_i.shape[::-1]
+shape_stagg_mesh = np.shape(staggeredpts_i)
 
 # Store the reference Laplacian metric
-DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), XXX)
-laplacian_dataf = compute_Laplacian(DDD, DDD)
+DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), shape_train_mesh, select_dimension)
+laplacian_dataf = compute_Laplacian(DDD, DDD, select_dimension)
+
 
 
 
 
 ### TRAIN THE MODELS
 
-if method == 'gpr.scikit':
+trained_model_file = model_filename(method, dafolder)
+
+
+# We need to build a model first
+if if_train_optim == 'restart':
+    # Read in a saved model from trained_model_file
+    loss = None
+    model, likelihood = load_model_from_file(method, trained_model_file)
+else:
+    # Otherwise build a model from scratch to be abused by the optimisers
+    model, likelihood = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
+
+
+# Now we decide what to do with it
+if if_train_optim == 'conventional':
     loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
-
-    if if_train_optim:
-        # Define the kernel parameters
-        kernel = 1.**2 * RBF(length_scale=np.full(Ndimensions, 1.0))
-
-        # Setup the model
-        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
-
-        # Train model
-        model.fit(datas.to_numpy(), dataf.to_numpy())
-
-        msg = "Training Kernel: " + str(model.kernel_)
-        print(msg)
-        flightlog.write(msg+'\n')
- 
-        # store the model for reuse
-        with open(trained_model_file, "wb") as f:
-            pickle.dump(model, f)
-    else:
-        # We simply insert the input data into the kernel
-        with open(trained_model_file, "rb") as f:
-            model = pickle.load(f)
-    
-    # Predict and evaluate
-    meanf = my_predicts(model, datas.to_numpy())
-    meant = my_predicts(model, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-
-
-
-elif method == 'gpr.gpflow':
+    if 'gpr' in method:
+        minimise_GPR_LML(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(), trained_model_file, loss, casesetup, flightlog)
+    elif 'nn' in method:
+        minimise_NN_RMSE(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(), trained_model_file, loss, casesetup, flightlog)
+elif if_train_optim == 'diffusionloss':
     loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
-
-    if if_train_optim:
-        # Define the kernel parameters
-        vars = 1.**2.
-        lens = 1. #np.full(Ndimensions, 1.0)
-        pvar = 0.1
-
-        kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
-
-        # Define the optimizer
-        opt = gpflow.optimizers.Scipy()
-
-        # Set priors
-        gpflow.utilities.set_trainable(kernel.variance, False)
-        kernel.lengthscales.prior = tfp.distributions.LogNormal(
-            tf.math.log(gpflow.utilities.to_default_float(lens)), pvar
-        )
-
-        # Create the full GPR model
-        model = gpflow.models.GPR(data=(datas.to_numpy(), dataf.to_numpy().reshape(-1,1)), kernel=kernel, noise_variance=None)
-        model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
-        gpflow.set_trainable(model.likelihood.variance, False)
-
-        # Optimize the full model
-        monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
-        opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=monitor, compile=True)
-
-        msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
-        print(msg)
-        flightlog.write(msg+'\n')
-
-        # store the model for reuse
-        with open(trained_model_file, "wb") as f:
-            pickle.dump(model, f)
-
-    else:
-        # We simply insert the input data into the kernel
-        with open(trained_model_file, "rb") as f:
-            model = pickle.load(f)
-
-    # store the posterior for faster prediction
-    posterior_gpr = model.posterior()
-
-    # Predict and evaluate
-    meanf = my_predicts(posterior_gpr, datas.to_numpy())
-    meant = my_predicts(posterior_gpr, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-    write_predicts_file(dafolder, testso, testf, meant)
+    msg = minimise_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts, select_dimension,
+                                      shape_train_mesh, shape_stagg_mesh, loss, casesetup)
+    print(msg)
+    flightlog.write(msg+'\n')
+elif if_train_optim == 'nahimgood':
+    print('Nothing here to run dry yet.')
+    exit()
 
 
-
-elif method == 'gpr.gpytorch':
-    loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pth')
-
-    if if_train_optim:
-        # Convert data to torch tensors
-        train_x = torch.tensor(datas.to_numpy())
-        train_y = torch.tensor(dataf.to_numpy())
-
-        # Define the model
-        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
-        model = GPRegressionModel(train_x, train_y, likelihood)
-
-        # set the mode to training
-        model.train()
-        likelihood.train()
-
-        # Use Adam, hey Adam, me again, an apple
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
-
-        # "Loss" for GPs - the marginal log likelihood
-        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-        for i in range(gpytorch_options['maxiter']):
-            # Zero gradients from previous iteration
-            optimizer.zero_grad()
-            # Output from model
-            output = model(train_x)
-            # Calc loss and backprop gradients
-            opt_loss = -mll(output, train_y)
-            opt_loss.backward()
-            loss.append(opt_loss.item())
-            optimizer.step()
-
-        msg = "Lengthscale: " + str(model.covar_module.base_kernel.lengthscale.squeeze().tolist()) + "\n" \
-            + "Variance: " + str(model.covar_module.outputscale.item()) + "\n"
-
-        print(msg)
-        flightlog.write(msg)
-
-        # store the model for reuse
-        torch.save((model, likelihood), trained_model_file)
-
-    else:
-        # We simply insert the input data into the kernel
-        model, likelihood = torch.load(trained_model_file, weights_only=False)
-
-    # set the mode to eval
-    model.eval()
-    likelihood.eval()
-
-    # Predict and evaluate
-    meanf = my_predicts(model, datas.to_numpy())
-    meant = my_predicts(model, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-
-
-
-elif method == 'nn.tf':
-    loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
-
-    if if_train_optim:
-        input_shape = datas.to_numpy().shape[1:]
-
-        # Setup the neural network
-        model = keras.Sequential(
-            [layers.Input(shape=input_shape)] +
-            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in keras_options["hidden_layers"]] +
-            [layers.Dense(1)]
-            )
-
-        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
-
-        history = model.fit(
-            datas.to_numpy(),
-            dataf.to_numpy(),
-            verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
-            )
-        loss = np.log(history.history['loss'])
-
-        # store the model for reuse
-        model.save(trained_model_file)
-    
-    else:
-        # We simply insert the input data into the kernel
-        model = tf.keras.models.load_model(trained_model_file)
-
-    # Predict and evaluate
-    meanf = my_predicts(model, datas.to_numpy())
-    meant = my_predicts(model, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-
-
-
-elif method == 'at.tf':
-    loss = []
-    trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
-
-    if if_train_optim:
-        input_shape = datas.to_numpy().shape[1:]
-    
-        # Setup the neural network
-        inputs = layers.Input(shape=input_shape)
-
-        # Apply Multi-Head Attention
-        re_inputs = ExpandALayer()(inputs)
-        attention_output = layers.MultiHeadAttention(num_heads=keras_options["multiheadattention_setup"]["num_heads"], key_dim=Ndimensions)(re_inputs, re_inputs)
-        output = SqueezeALayer()(attention_output)
-
-        # Fully connected layers
-        for nn in keras_options["hidden_layers"]:
-            output = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(output)
-        output = layers.Dense(1)(output)
-
-        # Create model
-        model = keras.models.Model(inputs=inputs, outputs=output)
-
-        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
-
-        history = model.fit(
-            datas.to_numpy(),
-            dataf.to_numpy(),
-            verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
-            )
-        loss = np.log(history.history['loss'])
-
-        # store the model for reuse
-        model.save(trained_model_file)
-    
-    else:
-        # We simply insert the input data into the kernel
-        model = tf.keras.models.load_model(trained_model_file)
-
-    # Predict and evaluate
-    meanf = my_predicts(model, datas.to_numpy())
-    meant = my_predicts(model, tests.to_numpy())
-    flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-    flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
+# Predict and evaluate
+meanf = my_predicts(model, datas.to_numpy())
+meant = my_predicts(model, tests.to_numpy())
+flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
+flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
+write_predicts_file(dafolder, testso, testf, meant)
 
 
 
@@ -753,12 +537,12 @@ for k, v in enumerate(param3_cases):
 # Laplacians
 #_ Build the staggered mesh info to plot and write out the RMSE
 predf = my_predicts(model, datas.to_numpy())
-predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, XXX)
+predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, shape_train_mesh, select_dimension)
 
 predf_staggered = my_predicts(model, staggeredpts)
-predf_staggeredmesh = predf_staggered.reshape(np.shape(vertexmesh_X))
+predf_staggeredmesh = predf_staggered.reshape(shape_stagg_mesh)
 
-laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh)
+laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh, select_dimension)
 
 loss_m = np.sqrt(np.mean((laplacian_predf - laplacian_dataf)**2.))
 msg = f"RMSE of the Laplacians: {loss_m:.3e}"
@@ -798,50 +582,30 @@ for k, v in enumerate(param3_cases):
     plt.savefig(os.path.join(dafolder, 'the_Laplacian_for_param3-'+str(v)+'.'+figformat), format=figformat, dpi=1200)
     plt.close()
 
-    #__ Plot X-Ys
-    fig, axs = plt.subplots(1, 2, figsize=(14, 5))
-    fig.suptitle(f"Midline Laplacian Comparison (log scale) - param3 = {v}", fontsize=14)
+    # __ Plot X-Ys
+    fig, ax = plt.subplots(figsize=(12, 10))
 
-    # X-direction slice (mid param1)
-    mid_x = len(X[1:-1]) // 2
+    # X-direction slice at param1 = 14
+    param1_val = 14
+    idx_param1 = np.argmin(np.abs(X[1:-1] - param1_val))
     x_vals = Y[1:-1]
-    z1_x = np.log10(Z1[mid_x, :])
-    z2_x = np.log10(Z2[mid_x, :])
+    z1_x = np.log10(Z1[idx_param1, :])
+    z2_x = np.log10(Z2[idx_param1, :])
     delta_x = np.abs(z1_x - z2_x)
 
-    axs[0].plot(x_vals, z1_x, label='Reference', color='black', linewidth=1)
-    axs[0].plot(x_vals, z2_x, label='Fitted', color='red', linestyle='--', linewidth=1)
-    axs[0].plot(x_vals, delta_x, label='|Δ|', color='blue', linestyle=':', linewidth=1)
-    axs[0].set_title('Slice along param2 (mid param1)')
-    axs[0].set_xlabel('param2')
-    axs[0].set_ylabel('Log Laplacian(var1)')
-    axs[0].legend()
-    axs[0].grid(True)
-    axs[0].set_xlim(0,11)
-    axs[0].set_ylim(-2.5,0.5)
-    axs[0].margins(0, x=None, y=None, tight=True)
-
-    # Y-direction slice (mid param2)
-    mid_y = len(Y[1:-1]) // 2
-    y_vals = X[1:-1]
-    z1_y = np.log10(Z1[:, mid_y])
-    z2_y = np.log10(Z2[:, mid_y])
-    delta_y = np.abs(z1_y - z2_y)
-
-    axs[1].plot(y_vals, z1_y, label='Reference', color='black', linewidth=1)
-    axs[1].plot(y_vals, z2_y, label='Fitted', color='red', linestyle='--', linewidth=1)
-    axs[1].plot(y_vals, delta_y, label='|Δ|', color='blue', linestyle=':', linewidth=1)
-    axs[1].set_title('Slice along param1 (mid param2)')
-    axs[1].set_xlabel('param1')
-    axs[1].set_ylabel('Log Laplacian(var1)')
-    axs[1].legend()
-    axs[1].grid(True)
-    axs[1].set_xlim(0,35)
-    axs[1].set_ylim(-2.5,0.5)
-    axs[1].margins(0, x=None, y=None, tight=True)
+    ax.plot(x_vals, z1_x, label='Reference', color='black', linewidth=1)
+    ax.plot(x_vals, z2_x, label='Fitted', color='red', linestyle='--', linewidth=1)
+    ax.plot(x_vals, delta_x, label='|Δ|', color='blue', linestyle=':', linewidth=1)
+    ax.set_xlabel('param2')
+    ax.set_ylabel('Log mod. Diffusion Operator')
+    ax.legend()
+    ax.grid(True)
+    ax.set_xlim(0, 11)
+    ax.set_ylim(-2.5, 0.5)
+    ax.margins(0, tight=True)
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.savefig(os.path.join(dafolder, f"Laplacian_crosssection_param3-{v}."+figformat), format=figformat, dpi=1200)
+    plt.savefig(os.path.join(dafolder, f"Laplacian_param1-14_param3-{v}.{figformat}"), format=figformat, dpi=1200)
     plt.close()
 
 
