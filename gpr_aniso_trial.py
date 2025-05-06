@@ -78,7 +78,7 @@ def get_me_a_model(method, DATAX, DATAF):
     #_ Define kernel parameters for GPRs
     if 'gpr' in method:
         #_ variance
-        vars, _ = kernel_variance_whatabouts(casesetup)
+        vars, if_train_variance = kernel_variance_whatabouts(casesetup)
 
         #_ lengthscale
         lens = 1. # np.full(Ndimensions, 1.0)
@@ -91,6 +91,9 @@ def get_me_a_model(method, DATAX, DATAF):
     ## Each method has its own ways
     #_ GPR: Scikit-learn
     if method == 'gpr.scikit':
+        # Set priors: fix what we don't want to optimise
+        if not if_train_variance: print('uh....')
+
         # Get a kernel
         kernel = vars * RBF(length_scale=lens)
 
@@ -106,7 +109,7 @@ def get_me_a_model(method, DATAX, DATAF):
         kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
         # Set priors: fix what we don't want to optimise
-        gpflow.utilities.set_trainable(kernel.variance, False)
+        if not if_train_variance: gpflow.utilities.set_trainable(kernel.variance, False)
 
         # Set priors so the optimisation won't go wild
         pvar = 0.3
@@ -127,6 +130,9 @@ def get_me_a_model(method, DATAX, DATAF):
     elif method == 'gpr.gpytorch':
         train_x = torch.tensor(DATAX)
         train_y = torch.tensor(DATAF)
+
+        # Set priors: fix what we don't want to optimise
+        if not if_train_variance: print('uh....')
 
         # Define the model
         likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
