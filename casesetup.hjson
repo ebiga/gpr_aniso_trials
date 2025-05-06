@@ -28,7 +28,7 @@ fig_format: eps
 # GPR scikit options
 GPR_setup:
 {
-    # Set to true if you want it optimised, otherwise give it a value (it will be squared)
+    # Set to false if you want it optimised, otherwise give it a value (it will be squared)
     kernel_variance: 0.15
 
     # Scikit options
