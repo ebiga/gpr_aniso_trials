@@ -32,13 +32,13 @@ GPR_setup:
     kernel_variance: 0.15
 
     # Scikit options
-scikit_setup:
-{
-    n_restarts_optimizer: 3
-}
+    scikit_setup:
+    {
+        n_restarts_optimizer: 3
+    }
 
     # GPFlow options
-gpflow_setup:
+    gpflow_setup:
     {
         maxiter: 1500,
         gtol: 1e-9,
