@@ -269,34 +269,36 @@ if select_dimension == '3D':
     XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
     YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
     ZZ = np.unique( np.round(dataso['param3'], decimals=6) )/NormDlt[2] - NormMin[2]
-    XXX, YYY, ZZZ = np.meshgrid(XX, YY, ZZ, indexing='ij')
+
+    M_i, M_j, M_k = np.meshgrid(XX, YY, ZZ, indexing='ij')
 
     # staggered mesh
-    vertexmesh_X = ( XXX[:-1, :-1, :-1] + XXX[1:, :-1, :-1] + XXX[:-1, 1:, :-1] + XXX[1:, 1:, :-1]
-                   + XXX[:-1, :-1,1:  ] + XXX[1:, :-1,1:  ] + XXX[:-1, 1:,1:  ] + XXX[1:, 1:,1:  ]) / 8
-    vertexmesh_Y = ( YYY[:-1, :-1, :-1] + YYY[1:, :-1, :-1] + YYY[:-1, 1:, :-1] + YYY[1:, 1:, :-1]
-                   + YYY[:-1, :-1,1:  ] + YYY[1:, :-1,1:  ] + YYY[:-1, 1:,1:  ] + YYY[1:, 1:,1:  ]) / 8
-    vertexmesh_Z = ( ZZZ[:-1, :-1, :-1] + ZZZ[1:, :-1, :-1] + ZZZ[:-1, 1:, :-1] + ZZZ[1:, 1:, :-1]
-                   + ZZZ[:-1, :-1,1:  ] + ZZZ[1:, :-1,1:  ] + ZZZ[:-1, 1:,1:  ] + ZZZ[1:, 1:,1:  ]) / 8
+    staggeredpts_i = ( M_i[:-1, :-1, :-1] + M_i[1:, :-1, :-1] + M_i[:-1, 1:, :-1] + M_i[1:, 1:, :-1]
+                     + M_i[:-1, :-1,1:  ] + M_i[1:, :-1,1:  ] + M_i[:-1, 1:,1:  ] + M_i[1:, 1:,1:  ]) / 8.
+    staggeredpts_j = ( M_j[:-1, :-1, :-1] + M_j[1:, :-1, :-1] + M_j[:-1, 1:, :-1] + M_j[1:, 1:, :-1]
+                     + M_j[:-1, :-1,1:  ] + M_j[1:, :-1,1:  ] + M_j[:-1, 1:,1:  ] + M_j[1:, 1:,1:  ]) / 8.
+    staggeredpts_k = ( M_k[:-1, :-1, :-1] + M_k[1:, :-1, :-1] + M_k[:-1, 1:, :-1] + M_k[1:, 1:, :-1]
+                     + M_k[:-1, :-1,1:  ] + M_k[1:, :-1,1:  ] + M_k[:-1, 1:,1:  ] + M_k[1:, 1:,1:  ]) / 8.
 
-    staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel(), vertexmesh_Z.ravel()]
+    staggeredpts = np.c_[staggeredpts_i.ravel(), staggeredpts_j.ravel(), staggeredpts_k.ravel()]
 
 elif select_dimension == '2D':
 
     XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
     YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
-    XXX, YYY = np.meshgrid(XX, YY, indexing='ij')
+
+    M_i, M_j = np.meshgrid(XX, YY, indexing='ij')
 
     # staggered mesh
-    vertexmesh_X = ( XXX[:-1, :-1] + XXX[1:, :-1] + XXX[:-1, 1:] + XXX[1:, 1:] ) / 4
-    vertexmesh_Y = ( YYY[:-1, :-1] + YYY[1:, :-1] + YYY[:-1, 1:] + YYY[1:, 1:] ) / 4
+    staggeredpts_i = ( M_i[:-1, :-1] + M_i[1:, :-1] + M_i[:-1, 1:] + M_i[1:, 1:] ) / 4.
+    staggeredpts_j = ( M_j[:-1, :-1] + M_j[1:, :-1] + M_j[:-1, 1:] + M_j[1:, 1:] ) / 4.
 
-    staggeredpts = np.c_[vertexmesh_X.ravel(), vertexmesh_Y.ravel()]
+    staggeredpts = np.c_[staggeredpts_i.ravel(), staggeredpts_j.ravel()]
 
 
 # We'll need the shapes for managing in and out of the IJ meshgrid in the reversed order
-shape_train_mesh = XXX.shape[::-1]
-shape_stagg_mesh = np.shape(vertexmesh_X)
+shape_train_mesh = M_i.shape[::-1]
+shape_stagg_mesh = np.shape(staggeredpts_i)
 
 # Store the reference Laplacian metric
 DDD = reshape_flatarray_like_reference_meshgrid(dataf.to_numpy(), shape_train_mesh, select_dimension)
