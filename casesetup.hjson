@@ -26,19 +26,34 @@ if_train_optim: 'conventional'
 fig_format: eps
 
 # GPR scikit options
+GPR_setup:
+{
+    if_train_variance: false
+
+    # Scikit options
 scikit_setup:
 {
     n_restarts_optimizer: 3
 }
 
-# GPR GPFlow options
+    # GPFlow options
 gpflow_setup:
-{
-    optimiser:
     {
         maxiter: 1500,
         gtol: 1e-9,
         ftol: 1e-9,
+    }
+
+    # GPYTorch options
+    gpytorch_setup:
+    {
+        maxiter: 750,
+    }
+
+    # Diffusion-loss optimizer options
+    diffusionloss_minimise_setup:
+    {
+        maxiter: 1500,
         final_tr_radius: 1e-9,
         initial_tr_radius: 3,
     }
@@ -57,10 +72,4 @@ keras_setup:
     {
         num_heads: 2
     }
-}
-
-# GPR GPYtorch options
-gpytorch_setup:
-{
-    maxiter: 750,
 }

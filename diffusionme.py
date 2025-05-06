@@ -127,7 +127,7 @@ bound = scipy.optimize.Bounds(0.005,500.)
 def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension, shape_train_mesh, shape_stagg_mesh, histories, casesetup):
 
     # get the user inputs from Jason
-    gpflow_options = casesetup['gpflow_setup']['optimiser']
+    gpflow_options = casesetup['GPR_setup']['diffusionloss_minimise_setup']
 
     # A function to run a single combination of the hyperparameter grids
     #_ Option to run a KFold cross validation or direct "grid search"

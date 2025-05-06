@@ -40,8 +40,8 @@ torch.manual_seed(42)
 def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
 
     # get the user inputs from Jason
-    gpflow_options = casesetup['gpflow_setup']['optimiser']
-    gpytorch_options = casesetup['gpytorch_setup']
+    gpflow_options = casesetup['GPR_setup']['gpflow_setup']
+    gpytorch_options = casesetup['GPR_setup']['gpytorch_setup']
 
 
     if method == 'gpr.scikit':

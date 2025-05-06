@@ -82,7 +82,7 @@ def get_me_a_model(method, DATAX, DATAF):
     
     #_ Define nn parameters for... well, NNs
     if 'nn' in method:
-        nn_layers = keras_options["hidden_layers"]
+        nn_layers = casesetup['keras_setup']["hidden_layers"]
 
 
     ## Each method has its own ways
@@ -92,6 +92,7 @@ def get_me_a_model(method, DATAX, DATAF):
         kernel = vars * RBF(length_scale=lens)
 
         # Setup the model
+        n_restarts_optimizer = casesetup['GPR_setup']['scikit_setup']['n_restarts_optimizer']
         model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
 
         return model, None
@@ -155,7 +156,10 @@ def get_me_a_model(method, DATAX, DATAF):
 
         # Apply Multi-Head Attention
         re_inputs = ExpandALayer()(inputs)
-        attention_output = layers.MultiHeadAttention(num_heads=keras_options["multiheadattention_setup"]["num_heads"], key_dim=Ndimensions)(re_inputs, re_inputs)
+
+        num_heads = casesetup['keras_setup']["multiheadattention_setup"]["num_heads"]
+        attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
+
         output = SqueezeALayer()(attention_output)
 
         # Fully connected layers
@@ -183,10 +187,6 @@ select_dimension = casesetup['select_dimension']
 select_input_size = casesetup['select_input_size']
 method = casesetup['method']
 if_train_optim = casesetup['if_train_optim']
-gpflow_options = casesetup['gpflow_setup']['optimiser']
-keras_options = casesetup['keras_setup']
-gpytorch_options = casesetup['gpytorch_setup']
-n_restarts_optimizer = casesetup['scikit_setup']['n_restarts_optimizer']
 figformat = casesetup['fig_format']
 
 # file locations
