@@ -20,10 +20,10 @@ torch.manual_seed(42)
 
 # GPYTorch loves a class, doesn't it
 class GPRegressionModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood):
-        super(GPRegressionModel, self).__init__(train_x, train_y, likelihood)
+    def __init__(self, vars, lens, train_x, train_y, likelihood):
+        super(GPRegressionModel, self).__init__(vars, lens, train_x, train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=Ndimensions, lengthscale=torch.tensor(np.full(Ndimensions, 1.0))), outputscale=1.0**2)
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=Ndimensions, lengthscale=torch.tensor(lens)), outputscale=vars)
 
     def forward(self, x):
         mean_x = self.mean_module(x)

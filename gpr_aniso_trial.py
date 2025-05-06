@@ -74,26 +74,38 @@ def model_filename(method, dafolder):
 ## FUNCTION: Setup the model to be run and the file to save it
 def get_me_a_model(method, DATAX, DATAF):
 
+    ## Input model parameters
+    #_ Define kernel parameters for GPRs
+    if 'gpr' in method:
+        vars = 0.15**2.
+        lens = 1. # np.full(Ndimensions, 1.0)
+    
+    #_ Define nn parameters for... well, NNs
+    if 'nn' in method:
+        nn_layers = keras_options["hidden_layers"]
+
+
+    ## Each method has its own ways
+    #_ GPR: Scikit-learn
     if method == 'gpr.scikit':
-        # Define the kernel parameters
-        kernel = 1.**2 * RBF(length_scale=np.full(Ndimensions, 1.0))
+        # Get a kernel
+        kernel = vars * RBF(length_scale=lens)
 
         # Setup the model
         model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
 
         return model, None
 
-
+    #_ GPR: GPFlow
     elif method == 'gpr.gpflow':
-        # Define the kernel parameters
-        vars = 1.**2.
-        lens = 1. #np.full(Ndimensions, 1.0)
-        pvar = 0.1
-
+        # Get a kernel
         kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
-        # Set priors
+        # Set priors: fix what we don't want to optimise
         gpflow.utilities.set_trainable(kernel.variance, False)
+
+        # Set priors so the optimisation won't go wild
+        pvar = 0.3
         kernel.lengthscales.prior = tfp.distributions.LogNormal(
             tf.math.log(gpflow.utilities.to_default_float(lens)), pvar
         )
@@ -107,14 +119,14 @@ def get_me_a_model(method, DATAX, DATAF):
 
         return model, model.likelihood
 
-
+    #_ GPR: GPYTorch
     elif method == 'gpr.gpytorch':
         train_x = torch.tensor(DATAX)
         train_y = torch.tensor(DATAF)
 
         # Define the model
         likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
-        model = GPRegressionModel(train_x, train_y, likelihood)
+        model = GPRegressionModel(vars, lens, train_x, train_y, likelihood)
 
         # set the mode to training
         model.train()
@@ -122,20 +134,20 @@ def get_me_a_model(method, DATAX, DATAF):
 
         return model, likelihood
 
-
+    #_ NN, Dense
     elif method == 'nn.dense':
         # Setup the neural network
         input_shape = DATAX.shape[1:]
 
         model = keras.Sequential(
             [layers.Input(shape=input_shape)] +
-            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in keras_options["hidden_layers"]] +
+            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in nn_layers] +
             [layers.Dense(1)]
             )
 
         return model, None
 
-
+    #_ NN with Attention
     elif method == 'nn.attention':
         # Setup the neural network
         input_shape = DATAX.shape[1:]
@@ -147,7 +159,7 @@ def get_me_a_model(method, DATAX, DATAF):
         output = SqueezeALayer()(attention_output)
 
         # Fully connected layers
-        for nn in keras_options["hidden_layers"]:
+        for nn in nn_layers:
             output = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(output)
         output = layers.Dense(1)(output)
 
