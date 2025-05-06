@@ -48,7 +48,7 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
         # Train model
         model.fit(DATAX, DATAF)
 
-        msg = "Training Kernel: " + str(model.kernel_)
+        msg = "Training Kernel: " + generate_kernel_info(model)
         print(msg)
         flightlog.write(msg+'\n')
 
@@ -66,7 +66,7 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
         monitor = Monitor(MonitorTaskGroup( [lambda x: loss.append(float(model.training_loss()))] ))
         opt.minimize(model.training_loss, variables=model.trainable_variables, options=gpflow_options, step_callback=monitor, compile=True)
 
-        msg = "Training Kernel: " + str(generate_gpflow_kernel_code(model.kernel))
+        msg = "Training Kernel: " + generate_kernel_info(model)
         print(msg)
         flightlog.write(msg+'\n')
 
@@ -105,9 +105,7 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
             loss.append(opt_loss.item())
             optimizer.step()
 
-        msg = "Lengthscale: " + str(model.covar_module.base_kernel.lengthscale.squeeze().tolist()) + "\n" \
-            + "Variance: " + str(model.covar_module.outputscale.item()) + "\n"
-
+        msg = "Training Kernel: " + generate_kernel_info(model)
         print(msg)
         flightlog.write(msg)
 

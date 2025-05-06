@@ -179,3 +179,6 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
 
     res = scipy.optimize.minimize(evaluate_trial, x0, args=(model,), method='COBYQA', bounds=bound, options=optim_options)
 
+    msg = "Training Kernel: " + generate_kernel_info(model)
+    return msg
+

@@ -21,35 +21,46 @@ torch.manual_seed(42)
 
 
 
-## Function to write out gpflow kernel params for the future
-def generate_gpflow_kernel_code(kernel):
-    def kernel_to_code(k):
-        # Handle kernel combinations (Sum, Product)
-        if isinstance(k, gpflow.kernels.Sum):
-            return " + ".join(kernel_to_code(sub_k) for sub_k in k.kernels)
-        elif isinstance(k, gpflow.kernels.Product):
-            return " * ".join(kernel_to_code(sub_k) for sub_k in k.kernels)
-        # Handle individual kernels (e.g., RBF, Constant, etc.)
-        params = []
-        # Extract parameter name and transformed value
-        #_ variance
-        param_nam = "var"
-        param_val = k.variance.numpy().round(decimals=3)
-        params.append(f"{param_nam}={param_val}")
-        #_ lenghtscales
-        param_nam = "len"
-        param_val = k.lengthscales.numpy().round(decimals=3)
-        params.append(f"{param_nam}={param_val}")
-        #_ alpha if so
-        if isinstance(k, gpflow.kernels.RationalQuadratic):
-            param_nam = "alpha"
-            param_val = k.alpha.numpy().round(decimals=3)
+## Function to write out kernel params
+def generate_kernel_info(model):
+    module = type(model).__module__
+    
+    if "sklearn" in module:
+        return str(model.kernel_)
+    
+    elif "gpflow" in module:
+        def kernel_to_code(k):
+            # Handle kernel combinations (Sum, Product)
+            if isinstance(k, gpflow.kernels.Sum):
+                return " + ".join(kernel_to_code(sub_k) for sub_k in k.kernels)
+            elif isinstance(k, gpflow.kernels.Product):
+                return " * ".join(kernel_to_code(sub_k) for sub_k in k.kernels)
+            # Handle individual kernels (e.g., RBF, Constant, etc.)
+            params = []
+            # Extract parameter name and transformed value
+            #_ variance
+            param_nam = "var"
+            param_val = k.variance.numpy().round(decimals=3)
             params.append(f"{param_nam}={param_val}")
-        # Construct kernel initialization code
-        kernel_name = type(k).__name__
-        return f"{kernel_name}({', '.join(params)})"
-    # Start recursive kernel generation
-    return kernel_to_code(kernel)
+            #_ lenghtscales
+            param_nam = "len"
+            param_val = k.lengthscales.numpy().round(decimals=3)
+            params.append(f"{param_nam}={param_val}")
+            #_ alpha if so
+            if isinstance(k, gpflow.kernels.RationalQuadratic):
+                param_nam = "alpha"
+                param_val = k.alpha.numpy().round(decimals=3)
+                params.append(f"{param_nam}={param_val}")
+            # Construct kernel initialization code
+            kernel_name = type(k).__name__
+            return f"{kernel_name}({', '.join(params)})"
+        # Start recursive kernel generation
+        return str(kernel_to_code(model.kernel))
+    
+    elif isinstance(model, gpytorch.models.GP):
+        msg = "Lengthscale: " + str(model.covar_module.base_kernel.lengthscale.squeeze().tolist()) + "\n" \
+            + "Variance: " + str(model.covar_module.outputscale.item()) + "\n"
+        return msg
 
 
 

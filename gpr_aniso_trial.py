@@ -341,7 +341,10 @@ if if_train_optim == 'conventional':
         minimise_NN_RMSE(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(), trained_model_file, loss, casesetup, flightlog)
 elif if_train_optim == 'diffusionloss':
     loss = []
-    minimise_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts, select_dimension, shape_train_mesh, shape_stagg_mesh, loss, casesetup)
+    msg = minimise_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts, select_dimension,
+                                      shape_train_mesh, shape_stagg_mesh, loss, casesetup)
+    print(msg)
+    flightlog.write(msg+'\n')
 elif if_train_optim == 'nahimgood':
     #just run
     loss = None
