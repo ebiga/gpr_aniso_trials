@@ -134,10 +134,8 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
     vars, if_train_variance = kernel_variance_whatabouts(casesetup)
 
 
-    ## A function to run a single combination of the hyperparameter grids
-    #_ Option to run a KFold cross validation or direct "grid search"
+    ## A function to evaluate the training and diffusion losses within a minimiser
     def evaluate_trial(x, model):
-
 
         # Update the kernel with the optimisation variables
         lens = x[0]
