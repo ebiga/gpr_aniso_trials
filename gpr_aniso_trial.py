@@ -71,6 +71,23 @@ def model_filename(method, dafolder):
     return trained_model_file
 
 
+## FUNCTION: Just loads a model file
+def load_model_from_file(method, trained_model_file):
+    likelihood = None
+
+    if '.pkl' in trained_model_file:
+        with open(trained_model_file, "rb") as f:
+            model = pickle.load(f)
+
+    elif '.keras' in trained_model_file:
+        model = tf.keras.models.load_model(trained_model_file)
+
+    elif method == 'gpr.gpytorch':
+        model, likelihood = torch.load(trained_model_file, weights_only=False)
+
+    return model, likelihood
+
+
 ## FUNCTION: Setup the model to be run and the file to save it
 def get_me_a_model(method, DATAX, DATAF):
 
@@ -335,7 +352,13 @@ trained_model_file = model_filename(method, dafolder)
 
 
 # We need to build a model first
-model, likelihood = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
+if if_train_optim == 'restart':
+    # Read in a saved model from trained_model_file
+    loss = None
+    model, likelihood = load_model_from_file(method, trained_model_file)
+else:
+    # Otherwise build a model from scratch to be abused by the optimisers
+    model, likelihood = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
 
 
 # Now we decide what to do with it
@@ -352,11 +375,8 @@ elif if_train_optim == 'diffusionloss':
     print(msg)
     flightlog.write(msg+'\n')
 elif if_train_optim == 'nahimgood':
-    #just run
-    loss = None
-elif if_train_optim == 'restart':
-    #read in a saved model from trained_model_file
-    loss = None
+    print('Nothing here to run dry yet.')
+    exit()
 
 
 # Predict and evaluate
