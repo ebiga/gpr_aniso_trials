@@ -165,18 +165,19 @@ class SqueezeALayer(layers.Layer):
 
 
 # A KFold thingy going on
-NUM_KERNELS = 2
-IF_ARD = True
+NUM_KERNELS = 1
+IF_ARD = False
 bound = scipy.optimize.Bounds(0.005,500.)
 
-alpha = 0.1
+alpha = 50.
 
 def get_me_a_kernel(alph, lens, vars=1.):
     lens = lens[0] if not IF_ARD else lens
-    # tempk = gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
-    # gpflow.set_trainable(tempk.alpha, False)
-    # return tempk
-    return gpflow.kernels.Matern12(variance=vars, lengthscales=lens)
+
+    tempk = gpflow.kernels.RationalQuadratic(alpha=alph, variance=vars, lengthscales=lens)
+    gpflow.set_trainable(tempk.alpha, False)
+    return tempk
+    # return gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
 def random_search_gpflow_ard(datas, dataf):
 
