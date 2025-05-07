@@ -368,22 +368,34 @@ if if_train_optim == 'restart':
     model, likelihood = load_model_from_file(method, trained_model_file)
 else:
     # Otherwise build a model from scratch to be abused by the optimisers
-    model, likelihood = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
+    if if_train_optim == 'diffusionloss' and 'nn' in method:
+        #_ For NNs with a diffusion method we need a different style of model
+        model, likelihood = NN_model_with_laplacian(method, datas.to_numpy(), staggeredpts, casesetup)
+    else:
+        #_ Everyone else is vanilla
+        model, likelihood = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
 
 
 # Now we decide what to do with it
 if if_train_optim == 'conventional':
     loss = []
     if 'gpr' in method:
-        minimise_GPR_LML(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(), trained_model_file, loss, casesetup, flightlog)
+        minimise_GPR_LML(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(),
+                         trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
-        minimise_NN_RMSE(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(), trained_model_file, loss, casesetup, flightlog)
+        minimise_NN_RMSE(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(),
+                         trained_model_file, loss, casesetup, flightlog)
 elif if_train_optim == 'diffusionloss':
     loss = []
-    msg = minimise_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts, select_dimension,
-                                      shape_train_mesh, shape_stagg_mesh, loss, casesetup)
-    print(msg)
-    flightlog.write(msg+'\n')
+    if 'gpr' in method:
+        msg = GPR_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts, select_dimension,
+                                     shape_train_mesh, shape_stagg_mesh, loss, casesetup)
+        print(msg)
+        flightlog.write(msg+'\n')
+    elif 'nn' in method:
+        NN_training_laplacian(method, model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
+                              shape_train_mesh, shape_stagg_mesh, select_dimension,
+                              trained_model_file, loss, casesetup)
 elif if_train_optim == 'nahimgood':
     print('Nothing here to run dry yet.')
     exit()

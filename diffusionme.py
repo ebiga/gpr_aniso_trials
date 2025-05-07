@@ -24,6 +24,7 @@ from gpflow.monitor import Monitor, MonitorTaskGroup
 
 # get my functions
 from auxfunctions import *
+from auxgpytorch  import *
 
 # set floats and randoms
 gpflow.config.set_default_float('float64')
@@ -102,6 +103,7 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
 
 
 
+
 ## FUNCTION: update kernel parameters
 def update_kernel_params(model, new_lengthscale, new_variance=None):
     module = type(model).__module__
@@ -121,10 +123,11 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
 
 
 
+
 ## FUNCTION: minimise the diffusion loss
 bound = scipy.optimize.Bounds(0.005,500.)
 
-def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension, shape_train_mesh, shape_stagg_mesh, histories, casesetup):
+def GPR_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension, shape_train_mesh, shape_stagg_mesh, histories, casesetup):
 
     ## Get the user inputs from Jason
     #_ Optimiser options
@@ -181,3 +184,97 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
     msg = "Training Kernel: " + generate_kernel_info(model)
     return msg
 
+
+
+
+## FUNCTION: define a NN model to be used for the diffusion method
+def NN_model_with_laplacian(method, DATAX, STAGX, casesetup):
+    nn_layers = casesetup['keras_setup']["hidden_layers"]
+    input_shape = DATAX.shape[1:]
+
+    def build_trunk(input_tensor):
+        x = input_tensor
+        for nn in nn_layers:
+            x = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(x)
+        return layers.Dense(1)(x)
+
+    #_ NN, Dense
+    if method == 'nn.dense':
+        input_data = keras.Input(shape=input_shape, name='DATAX')
+        input_stag = keras.Input(shape=input_shape, name='STAGX')
+
+        # Shared trunk
+        shared_trunk = keras.models.Sequential(
+            [layers.Input(shape=input_shape)] +
+            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in nn_layers] +
+            [layers.Dense(1)]
+        )
+
+        out_data = shared_trunk(input_data)
+        out_stag = shared_trunk(input_stag)
+
+        model = keras.Model(inputs=[input_data, input_stag], outputs=[out_data, out_stag])
+        return model, None
+
+    #_ NN with Attention
+    elif method == 'nn.attention':
+        Ndimensions = input_shape[0]
+
+        input_data = keras.Input(shape=input_shape, name='DATAX')
+        input_stag = keras.Input(shape=input_shape, name='STAGX')
+
+        def attention_block(input_tensor):
+            re_inputs = ExpandALayer()(input_tensor)
+            num_heads = casesetup['keras_setup']["multiheadattention_setup"]["num_heads"]
+            attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
+            output = SqueezeALayer()(attention_output)
+            return build_trunk(output)
+
+        out_data = attention_block(input_data)
+        out_stag = attention_block(input_stag)
+
+        model = keras.Model(inputs=[input_data, input_stag], outputs=[out_data, out_stag])
+        return model, None
+
+
+
+
+## FUNCTION: minimises the RMSE for NNs
+def NN_training_laplacian(method, model, DATAX, DATAF, STAGX, refLAPLF,
+                          shape_train_mesh, shape_stagg_mesh, select_dimension,
+                          trained_model_file, loss, casesetup):
+
+    # get the user inputs from Jason
+    keras_options = casesetup['keras_setup']
+
+    loss_fn = NN_training_laplacian(refLAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension)
+
+    model.compile(loss=loss_fn, optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
+
+    history = model.fit(
+        x=[DATAX, STAGX],
+        y=DATAF,
+        verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
+        )
+    loss = np.log(history.history['loss'])
+
+    # store the model for reuse
+    model.save(trained_model_file)
+
+
+
+
+## FUNCTION: the proper Laplacian loss
+def NN_training_laplacian(LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension):
+    def loss_fn(y_true, y_pred):
+        pred_f, pred_stag = y_pred  # both outputs from model
+
+        loss_e = tf.sqrt(tf.reduce_mean(tf.square(pred_f - y_true)))
+        pred_f_mesh = tf.reshape(pred_f, shape_train_mesh)
+        pred_stag_mesh = tf.reshape(pred_stag, shape_stagg_mesh)
+
+        lap_pred = compute_Laplacian_tf(pred_f_mesh, pred_stag_mesh, select_dimension)
+        loss_m = tf.sqrt(tf.reduce_mean(tf.square(lap_pred - LAPLF)))
+
+        return loss_e + loss_m
+    return loss_fn
