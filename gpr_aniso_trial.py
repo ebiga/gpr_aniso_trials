@@ -285,15 +285,25 @@ for n, b in enumerate(brkpts):
 
 #_ mesh spacing
 Dgrid = np.full(Ndimensions, 1.)
-for n, b in enumerate(brkpts):
-    Dgrid[n] = (np.max(dataso[b]) - np.min(dataso[b]))/(Ngrid[n] - 1)
+
+XXo = np.unique( np.round(dataso['param1'], decimals=6) )
+Dgrid[0] = XXo[1] - XXo[0]
+
+YYo = np.unique( np.round(dataso['param2'], decimals=6) )
+Dgrid[1] = YYo[1] - YYo[0]
+
+if select_dimension == '3D':
+    ZZo = np.unique( np.round(dataso['param3'], decimals=6) )
+    Dgrid[2] = ZZo[1] - ZZo[0]
 
 #_ nondimensionalisation
 NormMin = np.full(Ndimensions, 0.)
 NormDlt = np.full(Ndimensions, 1.)
 
 for i, b in enumerate(brkpts):
-    NormMini   = 0.5*(np.max(dataso[b]) - np.min(dataso[b])) + np.min(dataso[b])
+    datalocl = dataso[b]
+    NormMini = datalocl[np.argmin(np.abs(datalocl - 0.5 * (np.max(datalocl) + np.min(datalocl))))]
+
     NormDlt[i] = Dgrid[i]
     NormMin[i] = NormMini/NormDlt[i]
 
@@ -304,9 +314,9 @@ for i, b in enumerate(brkpts):
 # We need a vertex centered grid to evaluate the rms
 if select_dimension == '3D':
 
-    XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
-    YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
-    ZZ = np.unique( np.round(dataso['param3'], decimals=6) )/NormDlt[2] - NormMin[2]
+    XX = XXo/NormDlt[0] - NormMin[0]
+    YY = YYo/NormDlt[1] - NormMin[1]
+    ZZ = ZZo/NormDlt[2] - NormMin[2]
 
     M_i, M_j, M_k = np.meshgrid(XX, YY, ZZ, indexing='ij')
 
@@ -322,8 +332,8 @@ if select_dimension == '3D':
 
 elif select_dimension == '2D':
 
-    XX = np.unique( np.round(dataso['param1'], decimals=6) )/NormDlt[0] - NormMin[0]
-    YY = np.unique( np.round(dataso['param2'], decimals=6) )/NormDlt[1] - NormMin[1]
+    XX = XXo/NormDlt[0] - NormMin[0]
+    YY = YYo/NormDlt[1] - NormMin[1]
 
     M_i, M_j = np.meshgrid(XX, YY, indexing='ij')
 
@@ -447,12 +457,9 @@ for k, v in enumerate(param3_cases):
     COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed', linewidths=0.5)
 
     # fetch the reference data
-    X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
-    Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
+    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(Ngrid[1], Ngrid[0])
 
-    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
-
-    COU = plt.contour(X, Y, Z1, levels=levels, linestyles='solid', linewidths=1)
+    COU = plt.contour(XXo, YYo, Z1, levels=levels, linestyles='solid', linewidths=1)
 
     # finalise the plot
     plt.clabel(COU, fontsize=9)
@@ -515,12 +522,9 @@ for k, v in enumerate(param3_cases):
     ax.plot_surface(XX, YY, Z2, cmap=cm.seismic, linewidth=0, alpha=0.5, antialiased=True, label="Fitted")
 
     # fetch the reference data
-    X = np.unique( np.round(dataso.loc[filtered_indices]['param1'], decimals=6) )
-    Y = np.unique( np.round(dataso.loc[filtered_indices]['param2'], decimals=6) )
+    XX, YY = np.meshgrid(XXo, YYo)
 
-    XX, YY = np.meshgrid(X, Y)
-
-    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(len(Y), len(X))
+    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(Ngrid[1], Ngrid[0])
 
     ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="Reference")
 
@@ -557,12 +561,9 @@ for k, v in enumerate(param3_cases):
     ax = fig.add_subplot(projection='3d')
 
     if select_dimension == '3D':
-        param3_vals = np.unique(np.round(dataso['param3'], decimals=6))
-        k = np.where(np.isclose(param3_vals, v, atol=1e-6))[0][0] - 1 # subtracting 1 cause the laplacians only have interior points
+        k = np.where(np.isclose(ZZo, v, atol=1e-6))[0][0] - 1 # subtracting 1 cause the laplacians only have interior points
 
-    X = np.unique(np.round(dataso['param1'], decimals=6))
-    Y = np.unique(np.round(dataso['param2'], decimals=6))
-    XX, YY = np.meshgrid(X[1:-1], Y[1:-1], indexing='ij')
+    XX, YY = np.meshgrid(XXo[1:-1], YYo[1:-1], indexing='ij')
 
     # filtered data in the plane
     Z1 = laplacian_dataf[:, :, k] if laplacian_dataf.ndim == 3 else laplacian_dataf
@@ -587,8 +588,8 @@ for k, v in enumerate(param3_cases):
 
     # X-direction slice at param1 = 14
     param1_val = 14
-    idx_param1 = np.argmin(np.abs(X[1:-1] - param1_val))
-    x_vals = Y[1:-1]
+    idx_param1 = np.argmin(np.abs(XXo[1:-1] - param1_val))
+    x_vals = YYo[1:-1]
     z1_x = np.log10(Z1[idx_param1, :])
     z2_x = np.log10(Z2[idx_param1, :])
     delta_x = np.abs(z1_x - z2_x)
