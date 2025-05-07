@@ -139,11 +139,11 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
     def evaluate_trial(x, model):
 
         # Update the kernel with the optimisation variables
-        lens = x[0]
-
         if if_train_variance:
-            vars = x[1]
+            lens = x[0] if len(x) == 1 else x[:-1]
+            vars = x[-1]
         else:
+            lens = x[0] if len(x) == 1 else x
             vars = None
         
         update_kernel_params(model, lens, vars)
@@ -172,9 +172,9 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
 
     # Optimizesss
     if if_train_variance:
-        x0 = [lens, vars]
+        x0 = [lens, vars] if np.isscalar(lens) else list(lens) + [vars]
     else:
-        x0 = [lens]
+        x0 = [lens] if np.isscalar(lens) else list(lens)
 
     res = scipy.optimize.minimize(evaluate_trial, x0, args=(model,), method='COBYQA', bounds=bound, options=optim_options)
 

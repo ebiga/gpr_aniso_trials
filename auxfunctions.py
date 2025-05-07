@@ -151,7 +151,7 @@ def kernel_variance_whatabouts(jsonfile):
 def kernel_lengthscale_whatabouts(jsonfile, select_dimension):
 
     # Get either a false or a value
-    lens = jsonfile['GPR_setup']['kernel_lengthscale']
+    lens = float(jsonfile['GPR_setup']['kernel_lengthscale'])
     if_ARD = jsonfile['GPR_setup']['if_kernel_lengthscale_ARD']
 
     if select_dimension == '3D':
