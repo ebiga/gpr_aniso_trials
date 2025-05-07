@@ -42,7 +42,7 @@ def generate_kernel_info(model):
             param_nam = "var"
             param_val = k.variance.numpy().round(decimals=3)
             params.append(f"{param_nam}={param_val}")
-            #_ lenghtscales
+            #_ lengthscales
             param_nam = "len"
             param_val = k.lengthscales.numpy().round(decimals=3)
             params.append(f"{param_nam}={param_val}")
@@ -143,3 +143,22 @@ def kernel_variance_whatabouts(jsonfile):
         if_train_variance = True
 
     return vars, if_train_variance
+
+
+
+
+## Will define what to do with the kernel lengthscale
+def kernel_lengthscale_whatabouts(jsonfile, select_dimension):
+
+    # Get either a false or a value
+    lens = jsonfile['GPR_setup']['kernel_lengthscale']
+    if_ARD = jsonfile['GPR_setup']['if_kernel_lengthscale_ARD']
+
+    if select_dimension == '3D':
+        Ndim = 3
+    elif select_dimension == '2D':
+        Ndim = 2
+
+    if if_ARD: lens = np.full(Ndim, lens)
+
+    return lens

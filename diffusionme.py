@@ -130,8 +130,9 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
     #_ Optimiser options
     optim_options = casesetup['GPR_setup']['diffusionloss_minimise_setup']
 
-    #_ Kernel variance
+    #_ Kernel variance and lengthscale
     vars, if_train_variance = kernel_variance_whatabouts(casesetup)
+    lens = kernel_lengthscale_whatabouts(casesetup, select_dimension)
 
 
     ## A function to evaluate the training and diffusion losses within a minimiser
@@ -171,9 +172,9 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
 
     # Optimizesss
     if if_train_variance:
-        x0 = [1., vars]
+        x0 = [lens, vars]
     else:
-        x0 = [1.]
+        x0 = [lens]
 
     res = scipy.optimize.minimize(evaluate_trial, x0, args=(model,), method='COBYQA', bounds=bound, options=optim_options)
 

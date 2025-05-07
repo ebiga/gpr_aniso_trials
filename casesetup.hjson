@@ -31,6 +31,12 @@ GPR_setup:
     # Set to false if you want it optimised, otherwise give it a value (it will be squared)
     kernel_variance: 0.15
 
+    # Give the kernel lengthscale a value
+    #_ Used as initial for all optimisations, or fixed for the dry runs
+    #_ If ARD flag is true, value will be used for all dimensions
+    kernel_lengthscale: 5.0
+    if_kernel_lengthscale_ARD: false
+
     # Scikit options
     scikit_setup:
     {

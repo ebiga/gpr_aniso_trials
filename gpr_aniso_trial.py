@@ -98,7 +98,7 @@ def get_me_a_model(method, DATAX, DATAF):
         vars, if_train_variance = kernel_variance_whatabouts(casesetup)
 
         #_ lengthscale
-        lens = 1. # np.full(Ndimensions, 1.0)
+        lens = kernel_lengthscale_whatabouts(casesetup, select_dimension)
 
     #_ Define nn parameters for... well, NNs
     if 'nn' in method:
