@@ -45,7 +45,11 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
 
 
     if method == 'gpr.scikit':
-        # Train model
+        # Reset the model with the optmization options
+        n_restarts_optimizer = casesetup['GPR_setup']['scikit_setup']['n_restarts_optimizer']
+        model = GaussianProcessRegressor(kernel=model.kernel, n_restarts_optimizer=n_restarts_optimizer)
+
+        # Train model with proper optimisation
         model.fit(DATAX, DATAF)
 
         msg = "Training Kernel: " + generate_kernel_info(model)
@@ -55,6 +59,8 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
         # store the model for reuse
         with open(trained_model_file, "wb") as f:
             pickle.dump(model, f)
+
+        return model, None
 
 
 
@@ -76,6 +82,8 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
 
         # store the posterior for faster prediction
         model = model.posterior()
+
+        return model, None
 
 
 
@@ -115,6 +123,8 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
         # set the mode to eval
         model.eval()
         likelihood.eval()
+
+        return model, likelihood
 
 
 

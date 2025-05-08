@@ -109,14 +109,21 @@ def get_me_a_model(method, DATAX, DATAF):
     #_ GPR: Scikit-learn
     if method == 'gpr.scikit':
         # Set priors: fix what we don't want to optimise
-        if not if_train_variance: print('uh....')
+        if not if_train_variance:
+            kvars = ConstantKernel(vars, constant_value_bounds="fixed")
+        else:
+            kvars = ConstantKernel(vars)
 
         # Get a kernel
-        kernel = vars * RBF(length_scale=lens)
+        kernel = kvars * RBF(length_scale=lens)
 
         # Setup the model
+        #_ We set it here with no optimizer to dry start it - this will be changed later if needed
         n_restarts_optimizer = casesetup['GPR_setup']['scikit_setup']['n_restarts_optimizer']
-        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
+        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer, optimizer=None)
+
+        # We need to blind fit to create the kernel_ structure
+        model.fit(DATAX, DATAF)
 
         return model, None
 
@@ -378,25 +385,28 @@ else:
 
 # Now we decide what to do with it
 if if_train_optim == 'conventional':
+    #_ Conventional optimisations
     loss = []
     if 'gpr' in method:
-        minimise_GPR_LML(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(),
-                         trained_model_file, loss, casesetup, flightlog)
+        model, likelihood = minimise_GPR_LML(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(),
+                                             trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
         minimise_NN_RMSE(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(),
                          trained_model_file, loss, casesetup, flightlog)
+
 elif if_train_optim == 'diffusionloss':
+    #_ My diffusion loss optimisation
     loss = []
     if 'gpr' in method:
-        msg = GPR_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts, select_dimension,
-                                     shape_train_mesh, shape_stagg_mesh, loss, casesetup)
-        print(msg)
-        flightlog.write(msg+'\n')
+        model, likelihood = minimise_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts,
+                                                        select_dimension, shape_train_mesh, shape_stagg_mesh, loss,
+                                                        casesetup, flightlog)
     elif 'nn' in method:
         NN_training_laplacian(method, model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
                               shape_train_mesh, shape_stagg_mesh, select_dimension,
                               trained_model_file, loss, casesetup)
 elif if_train_optim == 'nahimgood':
+    #_ Just dry run
     print('Nothing here to run dry yet.')
     exit()
 
