@@ -155,12 +155,14 @@ def get_me_a_model(method, DATAX, DATAF):
         train_x = torch.tensor(DATAX)
         train_y = torch.tensor(DATAF)
 
-        # Set priors: fix what we don't want to optimise
-        if not if_train_variance: print('uh....')
-
         # Define the model
         likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
-        model = GPRegressionModel(vars, lens, train_x, train_y, likelihood)
+        model = GPRegressionModel(train_x, train_y, likelihood)
+
+        # Set priors: fix what we don't want to optimise
+        model.set_hyperparameters(lens, vars)
+        if not if_train_variance:
+            model.covar_module.raw_outputscale.requires_grad = False
 
         # set the mode to training
         model.train()

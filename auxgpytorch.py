@@ -29,6 +29,12 @@ class GPRegressionModel(gpytorch.models.ExactGP):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+    
+    def set_hyperparameters(self, lens, vars=None):
+        with torch.no_grad():
+            self.covar_module.base_kernel.lengthscale.copy_(torch.tensor(lens))
+            if vars: self.covar_module.outputscale.copy_(torch.tensor(vars))
+            return
 
 
 
