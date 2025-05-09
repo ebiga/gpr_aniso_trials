@@ -179,7 +179,7 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
         for name in klist:
             if name.endswith('length_scale'):
                 params[name] = new_lengthscale
-            if new_variance is not None and name.endswith('constant_value'):
+            if new_variance and name.endswith('constant_value'):
                 params[name] = new_variance
 
         kernel.set_params(**params)
