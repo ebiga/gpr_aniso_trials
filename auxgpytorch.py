@@ -33,12 +33,23 @@ class GPRegressionModel(gpytorch.models.ExactGP):
     
     def set_hyperparameters(self, lens, vars=None):
         with torch.no_grad():
+
+            # Set the hyperparameters
             self.covar_module.base_kernel.raw_lengthscale.copy_(
                 self.covar_module.base_kernel.raw_lengthscale_constraint.inverse_transform(torch.tensor(lens))
                 )
             if vars: self.covar_module.raw_outputscale.copy_(
                 self.covar_module.raw_outputscale_constraint.inverse_transform(torch.tensor(vars))
                 )
+
+        # Force model out of eval mode to recompute internals ...
+        self.train()
+        self.likelihood.train()
+
+        # And back...
+        self.eval()
+        self.likelihood.eval()
+
         return
 
 
