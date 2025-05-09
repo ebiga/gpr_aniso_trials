@@ -102,57 +102,6 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
 
 
 
-## FUNCTION: update kernel parameters
-def update_kernel_params(model, new_lengthscale, new_variance=None):
-    module = type(model).__module__
-
-    #_ scikit-learn
-    if "sklearn" in module:
-        kernel = model.kernel
-        params = {}
-        klist  = kernel.get_params()
-
-        for name in klist:
-            if name.endswith('length_scale'):
-                params[name] = new_lengthscale
-            if new_variance is not None and name.endswith('constant_value'):
-                params[name] = new_variance
-
-        kernel.set_params(**params)
-        model.fit(model.X_train_, model.y_train_)
-        return
-
-    #_ GPflow
-    elif "gpflow" in module:
-        model.kernel.lengthscales.assign(new_lengthscale)
-        if new_variance: model.kernel.variance.assign(new_variance)
-        return
-
-    #_ GPyTorch
-    elif "gpytorch" in module:
-        covar_module = model.covar_module
-
-        if hasattr(covar_module, 'base_kernel'):
-            base_kernel = covar_module.base_kernel
-        else:
-            base_kernel = covar_module
-
-        if hasattr(base_kernel, 'lengthscale'):
-            base_kernel.lengthscale = new_lengthscale
-
-        if new_variance is not None:
-            if hasattr(covar_module, 'outputscale'):
-                covar_module.outputscale = new_variance
-            elif hasattr(covar_module, 'variance'):
-                covar_module.variance = new_variance
-        return
-
-    # === Unknown backend ===
-    else:
-        raise TypeError(f"Unsupported model type: {type(model)}")
-
-
-
 ## FUNCTION: minimise the diffusion loss
 bound = scipy.optimize.Bounds(0.005,500.)
 
