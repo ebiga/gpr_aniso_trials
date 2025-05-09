@@ -60,7 +60,7 @@ def minimise_GPR_LML(method, model, DATAX, DATAF, trained_model_file, loss, case
         with open(trained_model_file, "wb") as f:
             pickle.dump(model, f)
 
-        return model, None
+        return model
 
 
 
@@ -83,7 +83,7 @@ def minimise_GPR_LML(method, model, DATAX, DATAF, trained_model_file, loss, case
         # store the posterior for faster prediction
         model = model.posterior()
 
-        return model, None
+        return model
 
 
 

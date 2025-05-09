@@ -164,5 +164,5 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
     print(msg)
     flightlog.write(msg+'\n')
 
-    return model, None
+    return model
 
