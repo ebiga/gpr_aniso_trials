@@ -155,8 +155,12 @@ def get_me_a_model(method, DATAX, DATAF):
         train_x = torch.tensor(DATAX)
         train_y = torch.tensor(DATAF)
 
+        # GPYTorch requires us to build a likelihood, we want it noiseless and not trainable
+        likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.GreaterThan(1e-9))
+        likelihood.noise = 1e-8
+        likelihood.raw_noise.requires_grad = False
+
         # Define the model
-        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
         model = GPRegressionModel(train_x, train_y, likelihood)
 
         # Set priors: fix what we don't want to optimise
