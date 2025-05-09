@@ -37,7 +37,7 @@ torch.manual_seed(42)
 
 
 ## FUNCTION: minimises the log-marginal likelihood for GPRs
-def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
+def minimise_GPR_LML(method, model, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
 
     # get the user inputs from Jason
     gpflow_options = casesetup['GPR_setup']['gpflow_setup']
@@ -94,10 +94,10 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
 
         # set the mode to training
         model.train()
-        likelihood.train()
+        model.likelihood.train()
 
         # "Loss" for GPs - the marginal log likelihood
-        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(model.likelihood, model)
 
         # # Use Adam, hey Adam, me again, an apple
         # optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
@@ -124,18 +124,18 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
         flightlog.write(msg)
 
         # store the model for reuse
-        torch.save((model, likelihood), trained_model_file)
+        torch.save(model, trained_model_file)
 
         # set the mode to eval
         model.eval()
-        likelihood.eval()
+        model.likelihood.eval()
 
-        return model, likelihood
+        return model
 
 
 
 ## FUNCTION: minimises the RMSE for NNs
-def minimise_NN_RMSE(method, model, likelihood, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
+def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
