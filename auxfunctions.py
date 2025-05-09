@@ -74,6 +74,14 @@ def reshape_flatarray_like_reference_meshgrid(offending_array, ashape, select_di
     elif select_dimension == '2D':
         return offending_array.reshape(ashape).transpose()
 
+def tf_reshape_flatarray_like_reference_meshgrid(array, ashape, select_dimension):
+    if select_dimension == '3D':
+        reshaped = tf.reshape(array, ashape)
+        return tf.transpose(reshaped, perm=[2, 1, 0])
+    elif select_dimension == '2D':
+        reshaped = tf.reshape(array, ashape)
+        return tf.transpose(reshaped)
+
 
 
 

@@ -375,13 +375,7 @@ if if_train_optim == 'restart':
     loss = None
     model = load_model_from_file(method, trained_model_file)
 else:
-    # Otherwise build a model from scratch to be abused by the optimisers
-    if if_train_optim == 'diffusionloss' and 'nn' in method:
-        #_ For NNs with a diffusion method we need a different style of model
-        model = NN_model_with_laplacian(method, datas.to_numpy(), staggeredpts, casesetup)
-    else:
-        #_ Everyone else is vanilla
-        model = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
+    model = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
 
 
 # Now we decide what to do with it
@@ -403,7 +397,7 @@ elif if_train_optim == 'diffusionloss':
                                        select_dimension, shape_train_mesh, shape_stagg_mesh, loss,
                                        casesetup, flightlog)
     elif 'nn' in method:
-        NN_training_laplacian(method, model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
+        NN_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
                               shape_train_mesh, shape_stagg_mesh, select_dimension,
                               trained_model_file, loss, casesetup)
 elif if_train_optim == 'nahimgood':
