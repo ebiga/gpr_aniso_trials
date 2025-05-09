@@ -167,10 +167,6 @@ def get_me_a_model(method, DATAX, DATAF):
         if not if_train_variance:
             model.covar_module.raw_outputscale.requires_grad = False
 
-        # set the mode to training
-        model.train()
-        likelihood.train()
-
         return model
 
     #_ NN, Dense
