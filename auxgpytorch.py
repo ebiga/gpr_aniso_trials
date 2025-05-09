@@ -32,9 +32,13 @@ class GPRegressionModel(gpytorch.models.ExactGP):
     
     def set_hyperparameters(self, lens, vars=None):
         with torch.no_grad():
-            self.covar_module.base_kernel.lengthscale.copy_(torch.tensor(lens))
-            if vars: self.covar_module.outputscale.copy_(torch.tensor(vars))
-            return
+            self.covar_module.base_kernel.raw_lengthscale.copy_(
+                self.covar_module.base_kernel.raw_lengthscale_constraint.inverse_transform(torch.tensor(lens))
+                )
+            if vars: self.covar_module.raw_outputscale.copy_(
+                self.covar_module.raw_outputscale_constraint.inverse_transform(torch.tensor(vars))
+                )
+        return
 
 
 
