@@ -73,7 +73,6 @@ def model_filename(method, dafolder):
 
 ## FUNCTION: Just loads a model file
 def load_model_from_file(method, trained_model_file):
-    likelihood = None
 
     if '.pkl' in trained_model_file:
         with open(trained_model_file, "rb") as f:
@@ -83,9 +82,9 @@ def load_model_from_file(method, trained_model_file):
         model = tf.keras.models.load_model(trained_model_file)
 
     elif method == 'gpr.gpytorch':
-        model, likelihood = torch.load(trained_model_file, weights_only=False)
+        model = torch.load(trained_model_file, weights_only=False)
 
-    return model, likelihood
+    return model
 
 
 ## FUNCTION: Setup the model to be run and the file to save it
@@ -125,7 +124,7 @@ def get_me_a_model(method, DATAX, DATAF):
         # We need to blind fit to create the kernel_ structure
         model.fit(DATAX, DATAF)
 
-        return model, None
+        return model
 
     #_ GPR: GPFlow
     elif method == 'gpr.gpflow':
@@ -148,25 +147,31 @@ def get_me_a_model(method, DATAX, DATAF):
         model.likelihood.variance = gpflow.Parameter(1e-10, transform=gpflow.utilities.positive(lower=1e-12))
         gpflow.set_trainable(model.likelihood.variance, False)
 
-        return model, model.likelihood
+        return model
 
     #_ GPR: GPYTorch
     elif method == 'gpr.gpytorch':
         train_x = torch.tensor(DATAX)
         train_y = torch.tensor(DATAF)
 
-        # Set priors: fix what we don't want to optimise
-        if not if_train_variance: print('uh....')
+        # GPYTorch requires us to build a likelihood, we want it noiseless and not trainable
+        likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.GreaterThan(1e-9))
+        likelihood.noise = 1e-8
+        likelihood.raw_noise.requires_grad = False
 
         # Define the model
-        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(torch.tensor(np.full(len(train_y),1.e-6)))
-        model = GPRegressionModel(vars, lens, train_x, train_y, likelihood)
+        model = GPRegressionModel(train_x, train_y, likelihood)
+
+        # Set priors: fix what we don't want to optimise
+        model.set_hyperparameters(lens, vars)
+        if not if_train_variance:
+            model.covar_module.raw_outputscale.requires_grad = False
 
         # set the mode to training
         model.train()
         likelihood.train()
 
-        return model, likelihood
+        return model
 
     #_ NN, Dense
     elif method == 'nn.dense':
@@ -179,7 +184,7 @@ def get_me_a_model(method, DATAX, DATAF):
             [layers.Dense(1)]
             )
 
-        return model, None
+        return model
 
     #_ NN with Attention
     elif method == 'nn.attention':
@@ -203,7 +208,7 @@ def get_me_a_model(method, DATAX, DATAF):
         # Create model
         model = keras.models.Model(inputs=inputs, outputs=output)
 
-        return model, None
+        return model
 
 
 
@@ -372,15 +377,15 @@ trained_model_file = model_filename(method, dafolder)
 if if_train_optim == 'restart':
     # Read in a saved model from trained_model_file
     loss = None
-    model, likelihood = load_model_from_file(method, trained_model_file)
+    model = load_model_from_file(method, trained_model_file)
 else:
     # Otherwise build a model from scratch to be abused by the optimisers
     if if_train_optim == 'diffusionloss' and 'nn' in method:
         #_ For NNs with a diffusion method we need a different style of model
-        model, likelihood = NN_model_with_laplacian(method, datas.to_numpy(), staggeredpts, casesetup)
+        model = NN_model_with_laplacian(method, datas.to_numpy(), staggeredpts, casesetup)
     else:
         #_ Everyone else is vanilla
-        model, likelihood = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
+        model = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
 
 
 # Now we decide what to do with it
@@ -388,19 +393,19 @@ if if_train_optim == 'conventional':
     #_ Conventional optimisations
     loss = []
     if 'gpr' in method:
-        model, likelihood = minimise_GPR_LML(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(),
-                                             trained_model_file, loss, casesetup, flightlog)
+        model = minimise_GPR_LML(method, model, datas.to_numpy(), dataf.to_numpy(),
+                                 trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
-        minimise_NN_RMSE(method, model, likelihood, datas.to_numpy(), dataf.to_numpy(),
+        minimise_NN_RMSE(method, model, datas.to_numpy(), dataf.to_numpy(),
                          trained_model_file, loss, casesetup, flightlog)
 
 elif if_train_optim == 'diffusionloss':
     #_ My diffusion loss optimisation
     loss = []
     if 'gpr' in method:
-        model, likelihood = minimise_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts,
-                                                        select_dimension, shape_train_mesh, shape_stagg_mesh, loss,
-                                                        casesetup, flightlog)
+        model = GPR_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts,
+                                       select_dimension, shape_train_mesh, shape_stagg_mesh, loss,
+                                       casesetup, flightlog)
     elif 'nn' in method:
         NN_training_laplacian(method, model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
                               shape_train_mesh, shape_stagg_mesh, select_dimension,

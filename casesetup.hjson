@@ -54,7 +54,7 @@ GPR_setup:
     # GPYTorch options
     gpytorch_setup:
     {
-        maxiter: 750,
+        maxiter: 50,
     }
 
     # Diffusion-loss optimizer options

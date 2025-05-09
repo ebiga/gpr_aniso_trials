@@ -162,3 +162,37 @@ def kernel_lengthscale_whatabouts(jsonfile, select_dimension):
     if if_ARD: lens = np.full(Ndim, lens)
 
     return lens
+
+
+
+
+## Update kernel parameters
+def update_kernel_params(model, new_lengthscale, new_variance=None):
+    module = type(model).__module__
+
+    #_ scikit-learn
+    if "sklearn" in module:
+        kernel = model.kernel
+        params = {}
+        klist  = kernel.get_params()
+
+        for name in klist:
+            if name.endswith('length_scale'):
+                params[name] = new_lengthscale
+            if new_variance and name.endswith('constant_value'):
+                params[name] = new_variance
+
+        kernel.set_params(**params)
+        model.fit(model.X_train_, model.y_train_)
+        return
+
+    #_ GPflow
+    elif "gpflow" in module:
+        model.kernel.lengthscales.assign(new_lengthscale)
+        if new_variance: model.kernel.variance.assign(new_variance)
+        return
+
+    #_ GPyTorch
+    elif "gpytorch" in module:
+        model.set_hyperparameters(new_lengthscale, new_variance)
+        return

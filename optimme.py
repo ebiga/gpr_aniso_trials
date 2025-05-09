@@ -37,7 +37,7 @@ torch.manual_seed(42)
 
 
 ## FUNCTION: minimises the log-marginal likelihood for GPRs
-def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
+def minimise_GPR_LML(method, model, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
 
     # get the user inputs from Jason
     gpflow_options = casesetup['GPR_setup']['gpflow_setup']
@@ -60,7 +60,7 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
         with open(trained_model_file, "wb") as f:
             pickle.dump(model, f)
 
-        return model, None
+        return model
 
 
 
@@ -83,7 +83,7 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
         # store the posterior for faster prediction
         model = model.posterior()
 
-        return model, None
+        return model
 
 
 
@@ -94,42 +94,48 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
 
         # set the mode to training
         model.train()
-        likelihood.train()
-
-        # Use Adam, hey Adam, me again, an apple
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+        model.likelihood.train()
 
         # "Loss" for GPs - the marginal log likelihood
-        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(model.likelihood, model)
 
-        for i in range(gpytorch_options['maxiter']):
-            # Zero gradients from previous iteration
+        # # Use Adam, hey Adam, me again, an apple
+        # optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+        # for i in range(gpytorch_options['maxiter']):
+        #     optimizer.zero_grad()
+        #     output = model(train_x)
+        #     opt_loss = -mll(output, train_y)
+        #     opt_loss.backward()
+        #     loss.append(opt_loss.item())
+        #     optimizer.step()
+        
+        optimizer = torch.optim.LBFGS(model.parameters(), lr=1.0, max_iter=50)
+        def closure():
             optimizer.zero_grad()
-            # Output from model
             output = model(train_x)
-            # Calc loss and backprop gradients
-            opt_loss = -mll(output, train_y)
-            opt_loss.backward()
-            loss.append(opt_loss.item())
-            optimizer.step()
+            loss = -mll(output, train_y)
+            loss.backward()
+            return loss
+        for i in range(gpytorch_options['maxiter']):
+            loss = optimizer.step(closure)
 
         msg = "Training Kernel: " + generate_kernel_info(model)
         print(msg)
         flightlog.write(msg)
 
         # store the model for reuse
-        torch.save((model, likelihood), trained_model_file)
+        torch.save(model, trained_model_file)
 
         # set the mode to eval
         model.eval()
-        likelihood.eval()
+        model.likelihood.eval()
 
-        return model, likelihood
+        return model
 
 
 
 ## FUNCTION: minimises the RMSE for NNs
-def minimise_NN_RMSE(method, model, likelihood, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
+def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
