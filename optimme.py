@@ -96,22 +96,28 @@ def minimise_GPR_LML(method, model, likelihood, DATAX, DATAF, trained_model_file
         model.train()
         likelihood.train()
 
-        # Use Adam, hey Adam, me again, an apple
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
-
         # "Loss" for GPs - the marginal log likelihood
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
-        for i in range(gpytorch_options['maxiter']):
-            # Zero gradients from previous iteration
+        # # Use Adam, hey Adam, me again, an apple
+        # optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+        # for i in range(gpytorch_options['maxiter']):
+        #     optimizer.zero_grad()
+        #     output = model(train_x)
+        #     opt_loss = -mll(output, train_y)
+        #     opt_loss.backward()
+        #     loss.append(opt_loss.item())
+        #     optimizer.step()
+        
+        optimizer = torch.optim.LBFGS(model.parameters(), lr=1.0, max_iter=50)
+        def closure():
             optimizer.zero_grad()
-            # Output from model
             output = model(train_x)
-            # Calc loss and backprop gradients
-            opt_loss = -mll(output, train_y)
-            opt_loss.backward()
-            loss.append(opt_loss.item())
-            optimizer.step()
+            loss = -mll(output, train_y)
+            loss.backward()
+            return loss
+        for i in range(gpytorch_options['maxiter']):
+            loss = optimizer.step(closure)
 
         msg = "Training Kernel: " + generate_kernel_info(model)
         print(msg)
