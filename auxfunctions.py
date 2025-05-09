@@ -118,8 +118,10 @@ def my_predicts(model, X):
     else:
         if isinstance(model, gpytorch.models.GP):
             model.eval()
-            with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                return model(torch.tensor(X)).mean.detach().numpy()
+            model.likelihood.eval()
+            with gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False, solves=False):
+                with torch.no_grad():
+                    return model(torch.tensor(X)).mean.detach().numpy()
         else:
             raise TypeError(f"Unsupported model type: {type(model)}")
 

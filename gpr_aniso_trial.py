@@ -155,8 +155,8 @@ def get_me_a_model(method, DATAX, DATAF):
         train_y = torch.tensor(DATAF)
 
         # GPYTorch requires us to build a likelihood, we want it noiseless and not trainable
-        likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.GreaterThan(1e-9))
-        likelihood.noise = 1e-8
+        likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.GreaterThan(1e-12))
+        likelihood.noise = 1e-10
         likelihood.raw_noise.requires_grad = False
 
         # Define the model
