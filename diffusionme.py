@@ -211,6 +211,7 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF, shape_train_mesh, s
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
+    optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"])
 
     # Define the diffusion loss
     laplace_loss = LaplacianLoss(
@@ -222,14 +223,23 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF, shape_train_mesh, s
         select_dimension=select_dimension,
     )
 
-    # Compile and train the model
-    model.compile(loss=laplace_loss, optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
+    # Custom training to avoid batching
+    for epoch in range(250):
+        with tf.GradientTape() as tape:
+            # Forward pass: use the full mesh DATAX
+            y_pred = model(DATAX, training=True)
 
-    history = model.fit(
-        x=DATAX,
-        y=DATAF,
-        verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],)
-    loss = np.log(history.history['loss'])
+            # Compute custom loss (uses full mesh, not batch)
+            daloss = laplace_loss(DATAF, y_pred)
+
+        # Compute gradients and apply them
+        gradients = tape.gradient(daloss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        # Optional: Logging
+        loss.append(np.log(daloss.numpy()))
+        if epoch % 100 == 0:
+            print(f"Epoch {epoch}: Loss = {daloss.numpy():.6f}")
 
     # store the model for reuse
     model.save(trained_model_file)
