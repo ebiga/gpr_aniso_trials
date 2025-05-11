@@ -386,8 +386,8 @@ if if_train_optim == 'conventional':
         model = minimise_GPR_LML(method, model, datas.to_numpy(), dataf.to_numpy(),
                                  trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
-        minimise_NN_RMSE(method, model, datas.to_numpy(), dataf.to_numpy(),
-                         trained_model_file, loss, casesetup, flightlog)
+        model = minimise_NN_RMSE(method, model, datas.to_numpy(), dataf.to_numpy(),
+                                 trained_model_file, loss, casesetup, flightlog)
 
 elif if_train_optim == 'diffusionloss':
     #_ My diffusion loss optimisation

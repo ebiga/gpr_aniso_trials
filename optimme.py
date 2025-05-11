@@ -151,3 +151,5 @@ def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, case
 
     # store the model for reuse
     model.save(trained_model_file)
+
+    return model
