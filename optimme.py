@@ -140,7 +140,7 @@ def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, case
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
 
-    model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
+    model.compile(loss='mean_squared_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
     history = model.fit(
         DATAX,
