@@ -170,43 +170,64 @@ def GPR_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension,
 
 
 
+## CLASS: define a Laplace diffusion loss for a NN model
+class LaplacianLoss(tf.keras.losses.Loss):
+    def __init__(self, model, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension):
+        super().__init__()
+        self.model = model
+        self.STAGX = STAGX #tf.constant(STAGX)
+        self.LAPLF = LAPLF #tf.constant(LAPLF)
+        self.shape_train_mesh = shape_train_mesh
+        self.shape_stagg_mesh = shape_stagg_mesh
+        self.select_dimension = select_dimension
+
+    def call(self, y_true, y_pred):
+        #_ Training loss
+        loss_e = tf.reduce_mean(tf.square(y_true - y_pred))
+
+        predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(y_pred, self.shape_train_mesh, self.select_dimension)
+
+        #_ Diffusion loss
+        predf_staggered     = self.model(self.STAGX, training=False)
+        predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
+
+        laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
+
+        loss_m = tf.reduce_mean(tf.square(self.LAPLF - laplacian_predf))
+
+        loss = loss_e + loss_m
+
+        return loss
+
+
+
+
 ## FUNCTION: minimises the RMSE for NNs
-def NN_training_laplacian(model, DATAX, DATAF, STAGX, refLAPLF,
-                          shape_train_mesh, shape_stagg_mesh, select_dimension,
-                          trained_model_file, loss, casesetup):
+def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension, trained_model_file, loss, casesetup):
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
 
-    loss_fn = NN_laplacian_loss(model, STAGX, refLAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension)
+    # Define the diffusion loss
+    laplace_loss = LaplacianLoss(
+        model=model,
+        STAGX=STAGX,
+        LAPLF=LAPLF,
+        shape_train_mesh=shape_train_mesh,
+        shape_stagg_mesh=shape_stagg_mesh,
+        select_dimension=select_dimension,
+    )
 
-    model.compile(loss=loss_fn, optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
+    # Compile and train the model
+    model.compile(loss=laplace_loss, optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
     history = model.fit(
         x=DATAX,
         y=DATAF,
-        verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
-        )
+        verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],)
     loss = np.log(history.history['loss'])
 
     # store the model for reuse
     model.save(trained_model_file)
 
-
-
-
-## FUNCTION: the proper Laplacian loss
-def NN_laplacian_loss(model, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension):
-    def loss_fn(y_true, y_pred):
-        loss_e = tf.sqrt(tf.reduce_mean(tf.square(y_pred - y_true)))
-
-        pred_f_mesh = tf_reshape_flatarray_like_reference_meshgrid(y_pred, shape_train_mesh, select_dimension)
-
-        pred_staggered = model(STAGX, training=False)
-        pred_staggered_mesh = tf.reshape(pred_staggered, shape_stagg_mesh)
-
-        lap_pred = compute_Laplacian(pred_f_mesh, pred_staggered_mesh, select_dimension)
-        loss_m = tf.sqrt(tf.reduce_mean(tf.square(lap_pred - LAPLF)))
-
-        return loss_e + loss_m
-    return loss_fn
+    return model
