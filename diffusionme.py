@@ -191,7 +191,11 @@ class LaplacianLoss(tf.keras.losses.Loss):
         predf_staggered     = self.model(self.STAGX, training=False)
         predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
 
-        laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
+        laplacian_predf = tf.numpy_function(
+                func=compute_Laplacian,
+                inp=[predf_mesh, predf_staggeredmesh, self.select_dimension],
+                Tout=tf.float64,
+            )
 
         loss_m = tf.reduce_mean(tf.square(self.LAPLF - laplacian_predf))
 
