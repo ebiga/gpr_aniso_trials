@@ -213,7 +213,7 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
 
 
 ## NN trunk constructor
-def build_trunk(input_tensor, nn_layers):
+def build_nn_trunk(input_tensor, nn_layers):
     x = input_tensor
     for nn in nn_layers:
         x = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(x)

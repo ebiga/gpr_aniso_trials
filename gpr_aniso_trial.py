@@ -175,9 +175,9 @@ def get_me_a_model(method, DATAX, DATAF):
         input_shape = DATAX.shape[1:]
 
         inputs = tf.keras.Input(shape=input_shape)
-        output = build_trunk(inputs, nn_layers)
+        output = build_nn_trunk(inputs, nn_layers)
 
-        # Define the model to get it out in thw world
+        # Define the model to get it out in the world
         model = tf.keras.Model(inputs=inputs, outputs=output)
 
         return model
@@ -186,22 +186,18 @@ def get_me_a_model(method, DATAX, DATAF):
     elif method == 'nn.attention':
         # Setup the neural network
         input_shape = DATAX.shape[1:]
-        inputs = layers.Input(shape=input_shape)
-
-        # Apply Multi-Head Attention
-        re_inputs = ExpandALayer()(inputs)
-
         num_heads = casesetup['keras_setup']["multiheadattention_setup"]["num_heads"]
-        attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
 
-        output = SqueezeALayer()(attention_output)
+        def attention_block(input_tensor, num_heads):
+            re_inputs = ExpandALayer()(input_tensor)
+            attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
+            output = SqueezeALayer()(attention_output)
+            return build_nn_trunk(output)
 
-        # Fully connected layers
-        for nn in nn_layers:
-            output = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(output)
-        output = layers.Dense(1)(output)
+        inputs = keras.Input(shape=input_shape)
+        output = attention_block(inputs, num_heads)
 
-        # Create model
+        # Create an attentive model
         model = keras.models.Model(inputs=inputs, outputs=output)
 
         return model
