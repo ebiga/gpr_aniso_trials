@@ -174,11 +174,11 @@ def get_me_a_model(method, DATAX, DATAF):
         # Setup the neural network
         input_shape = DATAX.shape[1:]
 
-        model = keras.Sequential(
-            [layers.Input(shape=input_shape)] +
-            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in nn_layers] +
-            [layers.Dense(1)]
-            )
+        inputs = tf.keras.Input(shape=input_shape)
+        output = build_trunk(inputs, nn_layers)
+
+        # Define the model to get it out in thw world
+        model = tf.keras.Model(inputs=inputs, outputs=output)
 
         return model
 

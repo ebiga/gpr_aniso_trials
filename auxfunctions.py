@@ -9,6 +9,8 @@ import torch
 import gpytorch
 
 import tensorflow as tf
+from tensorflow import keras
+from keras import layers
 
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
@@ -206,3 +208,13 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
     elif "gpytorch" in module:
         model.set_hyperparameters(new_lengthscale, new_variance)
         return
+
+
+
+
+## NN trunk constructor
+def build_trunk(input_tensor, nn_layers):
+    x = input_tensor
+    for nn in nn_layers:
+        x = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(x)
+    return layers.Dense(1)(x)
