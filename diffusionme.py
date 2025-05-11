@@ -212,6 +212,7 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF, shape_train_mesh, s
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
     optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"])
+    epochs=keras_options["epochs"]
 
     # Define the diffusion loss
     laplace_loss = LaplacianLoss(
@@ -224,7 +225,7 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF, shape_train_mesh, s
     )
 
     # Custom training to avoid batching
-    for epoch in range(250):
+    for epoch in range(epochs):
         with tf.GradientTape() as tape:
             # Forward pass: use the full mesh DATAX
             y_pred = model(DATAX, training=True)
