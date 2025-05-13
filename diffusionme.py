@@ -43,6 +43,9 @@ torch.manual_seed(42)
 #_ It's never enough any effort to make life easier...
 def compute_Laplacian(f_orig, f_stag, select_dimension):
 
+    if isinstance(select_dimension, bytes):
+        select_dimension = select_dimension.decode("utf-8")
+
     if f_orig is not f_stag:
         # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
         #_ We compute the Laplacian with a 5-point stencil
@@ -203,17 +206,17 @@ class LaplacianModel(keras.Model):
         predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(predf, self.shape_train_mesh, self.select_dimension)
         predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
 
-        # laplacian_pred = tf.numpy_function(
-        #     func=compute_Laplacian,
-        #     inp=[predf_mesh, predf_staggeredmesh, self.select_dimension],
-        #     Tout=tf.float64
-        # )
+        laplacian_pred = tf.numpy_function(
+            func=compute_Laplacian,
+            inp=[predf_mesh, predf_staggeredmesh, self.select_dimension],
+            Tout=tf.float64
+        )
 
         # Forward pass on batch
         with tf.GradientTape() as tape:
             y_pred_batch = self.base_model(x_batch, training=True)
             loss_e = tf.reduce_mean(tf.square(y_batch - tf.squeeze(y_pred_batch)))
-            loss_m = 0. #tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
+            loss_m = tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
             loss = loss_e + loss_m
 
         grads = tape.gradient(loss, self.base_model.trainable_variables)
