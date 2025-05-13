@@ -12,6 +12,10 @@ import tensorflow as tf
 from tensorflow import keras
 from keras import layers
 
+# get my functions
+from diffusionme import LaplacianModel
+
+# set floats and randoms
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
 torch.set_default_dtype(torch.float64)
@@ -125,15 +129,18 @@ def my_predicts(model, X):
     elif "tensorflow" in module or "keras" in module:
         return model.predict(X).reshape(-1)
     
+    elif isinstance(model, gpytorch.models.GP):
+        model.eval()
+        model.likelihood.eval()
+        with gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False, solves=False):
+            with torch.no_grad():
+                return model(torch.tensor(X)).mean.detach().numpy()
+
+    elif isinstance(model, LaplacianModel):
+        return model.predict(X).reshape(-1)
+
     else:
-        if isinstance(model, gpytorch.models.GP):
-            model.eval()
-            model.likelihood.eval()
-            with gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False, solves=False):
-                with torch.no_grad():
-                    return model(torch.tensor(X)).mean.detach().numpy()
-        else:
-            raise TypeError(f"Unsupported model type: {type(model)}")
+        raise TypeError(f"Unsupported model type: {type(model)}")
 
 
 
