@@ -171,37 +171,21 @@ def GPR_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension,
 
 
 ## CLASS: define a Laplace diffusion loss for a NN model
-class LaplacianLoss(tf.keras.losses.Loss):
-    def __init__(self, model, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension):
-        super().__init__()
-        self.model = model
-        self.STAGX = STAGX #tf.constant(STAGX)
-        self.LAPLF = LAPLF #tf.constant(LAPLF)
-        self.shape_train_mesh = shape_train_mesh
-        self.shape_stagg_mesh = shape_stagg_mesh
+class LaplacianLoss:
+    def __init__(self, select_dimension):
         self.select_dimension = select_dimension
 
-    def call(self, y_true, y_pred):
-        #_ Training loss
-        loss_e = tf.reduce_mean(tf.square(y_true - y_pred))
+    #def __call__(self, y_true, y_pred, laplacian_predf, LAPLF, batch_idx):
+    def __call__(self, y_true, y_pred, batch_idx):
+        loss_e = tf.reduce_mean(tf.square(y_true - tf.squeeze(y_pred)))
 
-        predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(y_pred, self.shape_train_mesh, self.select_dimension)
+        # Select Laplacian values corresponding to batch
+        # lap_batch = tf.gather(laplacian_predf, batch_idx)
+        # laplf_batch = tf.gather(LAPLF, batch_idx)
 
-        #_ Diffusion loss
-        predf_staggered     = self.model(self.STAGX, training=False)
-        predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
+        loss_m = 0#tf.reduce_mean(tf.square(laplf_batch - lap_batch))
 
-        laplacian_predf = tf.numpy_function(
-                func=compute_Laplacian,
-                inp=[predf_mesh, predf_staggeredmesh, self.select_dimension],
-                Tout=tf.float64,
-            )
-
-        loss_m = tf.reduce_mean(tf.square(self.LAPLF - laplacian_predf))
-
-        loss = loss_e + loss_m
-
-        return loss
+        return loss_e + loss_m
 
 
 
@@ -209,38 +193,64 @@ class LaplacianLoss(tf.keras.losses.Loss):
 ## FUNCTION: minimises the RMSE for NNs
 def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension, trained_model_file, loss, casesetup):
 
+    DATAF = DATAF[:, np.newaxis]
+
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
     optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"])
     epochs=keras_options["epochs"]
+    batch_size=keras_options["batch_size"]
 
-    # Define the diffusion loss
-    laplace_loss = LaplacianLoss(
-        model=model,
-        STAGX=STAGX,
-        LAPLF=LAPLF,
-        shape_train_mesh=shape_train_mesh,
-        shape_stagg_mesh=shape_stagg_mesh,
-        select_dimension=select_dimension,
-    )
+    dataset = tf.data.Dataset.from_tensor_slices((DATAX, DATAF))
+    dataset = dataset.cache()
+    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
-    # Custom training to avoid batching
+    laplace_loss = LaplacianLoss(select_dimension)
+
     for epoch in range(epochs):
-        with tf.GradientTape() as tape:
-            # Forward pass: use the full mesh DATAX
-            y_pred = model(DATAX, training=True)
+        if (epoch+1) % 100 == 0: print(f"Epoch {epoch+1}")
 
-            # Compute custom loss (uses full mesh, not batch)
-            daloss = laplace_loss(DATAF, y_pred)
+        sdataset = dataset.shuffle(buffer_size=len(DATAX))
 
-        # Compute gradients and apply them
-        gradients = tape.gradient(daloss, model.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+        #for step, (batch_idx, x_batch, y_batch) in enumerate(dataset):
+        for x_batch, y_batch in sdataset:
 
-        # Optional: Logging
-        loss.append(np.log(daloss.numpy()))
-        if epoch % 100 == 0:
-            print(f"Epoch {epoch}: Loss = {daloss.numpy():.6f}")
+            # # Compute full predictions for Laplacian (inference mode)
+            # predf = model(DATAX, training=False)
+            # predf_staggered = model(STAGX, training=False)
+
+            # predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(
+            #     predf, shape_train_mesh, select_dimension
+            # )
+            # predf_staggeredmesh = tf.reshape(predf_staggered, shape_stagg_mesh)
+
+            # # Compute Laplacian for full mesh
+            # laplacian_predf = tf.numpy_function(
+            #     func=compute_Laplacian,
+            #     inp=[predf_mesh, predf_staggeredmesh, select_dimension],
+            #     Tout=tf.float64,
+            # )
+
+            # Forward pass on batch
+            # @tf.function
+            # def train_step(x_batch, y_batch):
+            #     with tf.GradientTape() as tape:
+            #         y_pred_batch = model(x_batch, training=True)
+            #         loss_value = laplace_loss(y_batch, y_pred_batch, None)
+            #     grads = tape.gradient(loss_value, model.trainable_variables)
+            #     optimizer.apply_gradients(zip(grads, model.trainable_variables))
+            #     return loss_value
+            # loss_value = train_step(x_batch, y_batch)
+            with tf.GradientTape() as tape:
+                y_pred_batch = model(x_batch, training=True)
+                # loss_value = laplace_loss(y_batch, y_pred_batch, laplacian_predf, LAPLF, batch_idx)
+                loss_value = laplace_loss(y_batch, y_pred_batch, None) #batch_idx)
+            grads = tape.gradient(loss_value, model.trainable_variables)
+            optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
+            # print(f"  Step {step+1}: loss = {loss_value.numpy():.6f}")
+            loss.append(tf.math.log(loss_value))
 
     # store the model for reuse
     model.save(trained_model_file)
