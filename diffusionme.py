@@ -196,16 +196,16 @@ class LaplacianModel(keras.Model):
     def train_step(self, data):
         x_batch, y_batch = data
 
-        # # Compute full predictions for Laplacian
-        # full_pred = self.base_model(self.DATAX, training=False)
-        # full_pred_staggered = self.base_model(self.STAGX, training=False)
+        # Compute predictions for Laplacian - this is performed in the whole mesh cause the differentiation
+        predf = self.base_model(self.DATAX, training=False)
+        predf_staggered = self.base_model(self.STAGX, training=False)
 
-        # pred_mesh = tf.reshape(full_pred, self.shape_train_mesh)
-        # pred_staggered = tf.reshape(full_pred_staggered, self.shape_stagg_mesh)
+        predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(predf, self.shape_train_mesh, self.select_dimension)
+        predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
 
         # laplacian_pred = tf.numpy_function(
         #     func=compute_Laplacian,
-        #     inp=[pred_mesh, pred_staggered, self.select_dimension],
+        #     inp=[predf_mesh, predf_staggeredmesh, self.select_dimension],
         #     Tout=tf.float64
         # )
 

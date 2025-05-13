@@ -12,9 +12,6 @@ import tensorflow as tf
 from tensorflow import keras
 from keras import layers
 
-# get my functions
-from diffusionme import LaplacianModel
-
 # set floats and randoms
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
@@ -136,7 +133,7 @@ def my_predicts(model, X):
             with torch.no_grad():
                 return model(torch.tensor(X)).mean.detach().numpy()
 
-    elif isinstance(model, LaplacianModel):
+    elif "LaplacianModel" in type(model).__name__:
         return model.predict(X).reshape(-1)
 
     else:
