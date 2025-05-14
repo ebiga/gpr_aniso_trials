@@ -43,9 +43,6 @@ torch.manual_seed(42)
 #_ It's never enough any effort to make life easier...
 def compute_Laplacian(f_orig, f_stag, select_dimension):
 
-    if isinstance(select_dimension, bytes):
-        select_dimension = select_dimension.decode("utf-8")
-
     if f_orig is not f_stag:
         # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
         #_ We compute the Laplacian with a 5-point stencil
@@ -103,6 +100,64 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
                            / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
 
             return dsf_dD1s + dsf_dD2s
+
+# Tensorflow version - we only use for the staggered computations in the loop
+def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str, staggered=True):
+
+    def _laplacian_2d(f_orig, f_stag, staggered=True):
+        f_orig = tf.convert_to_tensor(f_orig, dtype=tf.float64)
+        f_stag = tf.convert_to_tensor(f_stag, dtype=tf.float64)
+        delta = tf.constant(2.0 * 0.5**2 if staggered else 2.0, dtype=tf.float64)
+
+        if staggered:
+            d1 = tf.abs(f_orig[2:, 2:] + f_orig[:-2, :-2] - f_stag[1:, 1:] - f_stag[:-1, :-1])
+            d1 /= (f_orig[2:, 2:] + f_orig[:-2, :-2] + f_stag[1:, 1:] + f_stag[:-1, :-1]) * (3. * delta)
+
+            d2 = tf.abs(f_orig[:-2, 2:] + f_orig[2:, :-2] - f_stag[:-1, 1:] - f_stag[1:, :-1])
+            d2 /= (f_orig[:-2, 2:] + f_orig[2:, :-2] + f_stag[:-1, 1:] + f_stag[1:, :-1]) * (3. * delta)
+        else:
+            center = f_orig[1:-1, 1:-1]
+            d1 = tf.abs(f_orig[2:, 2:] + f_orig[:-2, :-2] - 2. * center)
+            d1 /= (f_orig[2:, 2:] + f_orig[:-2, :-2] + 2. * center) * delta
+
+            d2 = tf.abs(f_orig[:-2, 2:] + f_orig[2:, :-2] - 2. * center)
+            d2 /= (f_orig[:-2, 2:] + f_orig[2:, :-2] + 2. * center) * delta
+
+        return d1 + d2
+
+
+    def _laplacian_3d(f_orig, f_stag, staggered=True):
+        f_orig = tf.convert_to_tensor(f_orig, dtype=tf.float64)
+        f_stag = tf.convert_to_tensor(f_stag, dtype=tf.float64)
+        delta = tf.constant(2.0 * 0.5**2 if staggered else 2.0, dtype=tf.float64)
+
+        if staggered:
+            d1 = tf.abs(f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] - f_stag[1:, 1:, 1:] - f_stag[:-1, :-1, :-1])
+            d1 /= (f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] + f_stag[1:, 1:, 1:] + f_stag[:-1, :-1, :-1]) * (3. * delta)
+
+            d2 = tf.abs(f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] - f_stag[:-1, 1:, 1:] - f_stag[1:, :-1, :-1])
+            d2 /= (f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] + f_stag[:-1, 1:, 1:] + f_stag[1:, :-1, :-1]) * (3. * delta)
+
+            d3 = tf.abs(f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] - f_stag[1:, :-1, 1:] - f_stag[:-1, 1:, :-1])
+            d3 /= (f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] + f_stag[1:, :-1, 1:] + f_stag[:-1, 1:, :-1]) * (3. * delta)
+        else:
+            center = f_orig[1:-1, 1:-1, 1:-1]
+            d1 = tf.abs(f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] - 2. * center)
+            d1 /= (f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] + 2. * center) * delta
+
+            d2 = tf.abs(f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] - 2. * center)
+            d2 /= (f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] + 2. * center) * delta
+
+            d3 = tf.abs(f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] - 2. * center)
+            d3 /= (f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] + 2. * center) * delta
+
+        return d1 + d2 + d3
+
+    if select_dimension == "3D":
+        return _laplacian_3d(f_orig, f_stag, staggered)
+    else:
+        return _laplacian_2d(f_orig, f_stag, staggered)
+
 
 
 
@@ -197,26 +252,25 @@ class LaplacianModel(keras.Model):
         return self.base_model(inputs, training=training)
 
     def train_step(self, data):
-        x_batch, y_batch = data
-
-        # Compute predictions for Laplacian - this is performed in the whole mesh cause the differentiation
-        predf = self.base_model(self.DATAX, training=False)
-        predf_staggered = self.base_model(self.STAGX, training=False)
-
-        predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(predf, self.shape_train_mesh, self.select_dimension)
-        predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
-
-        laplacian_pred = tf.numpy_function(
-            func=compute_Laplacian,
-            inp=[predf_mesh, predf_staggeredmesh, self.select_dimension],
-            Tout=tf.float64
-        )
-
-        # Forward pass on batch
         with tf.GradientTape() as tape:
+            x_batch, y_batch = data
+
+            #_ Training loss
             y_pred_batch = self.base_model(x_batch, training=True)
             loss_e = tf.reduce_mean(tf.square(y_batch - tf.squeeze(y_pred_batch)))
+
+            #_ Diffusion loss
+            #__ this is performed in the whole mesh cause the differentiation
+            predf = self.base_model(self.DATAX, training=True)
+            predf_staggered = self.base_model(self.STAGX, training=True)
+
+            predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(predf, self.shape_train_mesh, self.select_dimension)
+            predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
+
+            laplacian_pred = tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
+
             loss_m = tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
+
             loss = loss_e + loss_m
 
         grads = tape.gradient(loss, self.base_model.trainable_variables)
