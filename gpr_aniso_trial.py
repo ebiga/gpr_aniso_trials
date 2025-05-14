@@ -379,23 +379,23 @@ if if_train_optim == 'conventional':
     #_ Conventional optimisations
     loss = []
     if 'gpr' in method:
-        model = minimise_GPR_LML(method, model, datas.to_numpy(), dataf.to_numpy(),
-                                 trained_model_file, loss, casesetup, flightlog)
+        model, loss = minimise_GPR_LML(method, model, datas.to_numpy(), dataf.to_numpy(),
+                                       trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
-        model = minimise_NN_RMSE(method, model, datas.to_numpy(), dataf.to_numpy(),
-                                 trained_model_file, loss, casesetup, flightlog)
+        model, loss = minimise_NN_RMSE(method, model, datas.to_numpy(), dataf.to_numpy(),
+                                       trained_model_file, loss, casesetup, flightlog)
 
 elif if_train_optim == 'diffusionloss':
     #_ My diffusion loss optimisation
     loss = []
     if 'gpr' in method:
-        model = GPR_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts,
-                                       select_dimension, shape_train_mesh, shape_stagg_mesh, loss,
-                                       casesetup, flightlog)
+        model, loss = GPR_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
+                                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                                        trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
-        model = NN_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
-                                      shape_train_mesh, shape_stagg_mesh, select_dimension,
-                                      trained_model_file, loss, casesetup)
+        model, loss = NN_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
+                                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                                        trained_model_file, loss, casesetup, flightlog)
 
 elif if_train_optim == 'nahimgood':
     #_ Just dry run
@@ -416,7 +416,7 @@ write_predicts_file(dafolder, testso, testf, meant)
 ### PLOTTING
 
 # training convergence
-if if_train_optim:
+if if_train_optim == 'conventional' or if_train_optim == 'diffusionloss':
     plt.plot(np.array(loss), label='Training Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Log(Loss)')

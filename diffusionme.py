@@ -164,8 +164,9 @@ def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str, staggered=True):
 ## FUNCTION: minimise the diffusion loss
 bound = scipy.optimize.Bounds(0.005,500.)
 
-def GPR_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension,
-                           shape_train_mesh, shape_stagg_mesh, histories, casesetup, flightlog):
+def GPR_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
+                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                        trained_model_file, histories, casesetup, flightlog):
 
     ## Get the user inputs from Jason
     #_ Optimiser options
@@ -223,7 +224,7 @@ def GPR_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension,
     print(msg)
     flightlog.write(msg+'\n')
 
-    return model
+    return model, histories
 
 
 
@@ -286,7 +287,9 @@ class LaplacianModel(keras.Model):
 
 
 ## FUNCTION: minimises the RMSE for NNs
-def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension, trained_model_file, loss, casesetup):
+def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
+                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                        trained_model_file, histories, casesetup, flightlog):
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
@@ -309,9 +312,9 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF, shape_train_mesh, s
         DATAF,
         verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
         )
-    loss = np.log(history.history['loss'])
+    histories = np.log(history.history['loss'])
 
     # store the model for reuse
     model.save(trained_model_file)
 
-    return model
+    return model, histories
