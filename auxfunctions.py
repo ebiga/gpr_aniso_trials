@@ -9,7 +9,10 @@ import torch
 import gpytorch
 
 import tensorflow as tf
+from tensorflow import keras
+from keras import layers
 
+# set floats and randoms
 gpflow.config.set_default_float('float64')
 tf.keras.backend.set_floatx('float64')
 torch.set_default_dtype(torch.float64)
@@ -74,6 +77,14 @@ def reshape_flatarray_like_reference_meshgrid(offending_array, ashape, select_di
     elif select_dimension == '2D':
         return offending_array.reshape(ashape).transpose()
 
+def tf_reshape_flatarray_like_reference_meshgrid(array, ashape, select_dimension):
+    if select_dimension == '3D':
+        reshaped = tf.reshape(array, ashape)
+        return tf.transpose(reshaped, perm=[2, 1, 0])
+    elif select_dimension == '2D':
+        reshaped = tf.reshape(array, ashape)
+        return tf.transpose(reshaped)
+
 
 
 
@@ -115,15 +126,18 @@ def my_predicts(model, X):
     elif "tensorflow" in module or "keras" in module:
         return model.predict(X).reshape(-1)
     
+    elif isinstance(model, gpytorch.models.GP):
+        model.eval()
+        model.likelihood.eval()
+        with gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False, solves=False):
+            with torch.no_grad():
+                return model(torch.tensor(X)).mean.detach().numpy()
+
+    elif "LaplacianModel" in type(model).__name__:
+        return model.predict(X).reshape(-1)
+
     else:
-        if isinstance(model, gpytorch.models.GP):
-            model.eval()
-            model.likelihood.eval()
-            with gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False, solves=False):
-                with torch.no_grad():
-                    return model(torch.tensor(X)).mean.detach().numpy()
-        else:
-            raise TypeError(f"Unsupported model type: {type(model)}")
+        raise TypeError(f"Unsupported model type: {type(model)}")
 
 
 
@@ -198,3 +212,13 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
     elif "gpytorch" in module:
         model.set_hyperparameters(new_lengthscale, new_variance)
         return
+
+
+
+
+## NN trunk constructor
+def build_nn_trunk(input_tensor, nn_layers):
+    x = input_tensor
+    for nn in nn_layers:
+        x = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(x)
+    return layers.Dense(1)(x)

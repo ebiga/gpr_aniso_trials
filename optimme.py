@@ -60,7 +60,7 @@ def minimise_GPR_LML(method, model, DATAX, DATAF, trained_model_file, loss, case
         with open(trained_model_file, "wb") as f:
             pickle.dump(model, f)
 
-        return model
+        return model, loss
 
 
 
@@ -83,7 +83,7 @@ def minimise_GPR_LML(method, model, DATAX, DATAF, trained_model_file, loss, case
         # store the posterior for faster prediction
         model = model.posterior()
 
-        return model
+        return model, loss
 
 
 
@@ -130,7 +130,7 @@ def minimise_GPR_LML(method, model, DATAX, DATAF, trained_model_file, loss, case
         model.eval()
         model.likelihood.eval()
 
-        return model
+        return model, loss
 
 
 
@@ -140,7 +140,7 @@ def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, case
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
 
-    model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
+    model.compile(loss='mean_squared_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
     history = model.fit(
         DATAX,
@@ -151,3 +151,5 @@ def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, case
 
     # store the model for reuse
     model.save(trained_model_file)
+
+    return model, loss

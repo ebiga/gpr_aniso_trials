@@ -174,11 +174,11 @@ def get_me_a_model(method, DATAX, DATAF):
         # Setup the neural network
         input_shape = DATAX.shape[1:]
 
-        model = keras.Sequential(
-            [layers.Input(shape=input_shape)] +
-            [layers.Dense(nn, activation='elu', kernel_initializer='he_normal') for nn in nn_layers] +
-            [layers.Dense(1)]
-            )
+        inputs = tf.keras.Input(shape=input_shape)
+        output = build_nn_trunk(inputs, nn_layers)
+
+        # Define the model to get it out in the world
+        model = tf.keras.Model(inputs=inputs, outputs=output)
 
         return model
 
@@ -186,22 +186,18 @@ def get_me_a_model(method, DATAX, DATAF):
     elif method == 'nn.attention':
         # Setup the neural network
         input_shape = DATAX.shape[1:]
-        inputs = layers.Input(shape=input_shape)
-
-        # Apply Multi-Head Attention
-        re_inputs = ExpandALayer()(inputs)
-
         num_heads = casesetup['keras_setup']["multiheadattention_setup"]["num_heads"]
-        attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
 
-        output = SqueezeALayer()(attention_output)
+        def attention_block(input_tensor, num_heads):
+            re_inputs = ExpandALayer()(input_tensor)
+            attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
+            output = SqueezeALayer()(attention_output)
+            return build_nn_trunk(output)
 
-        # Fully connected layers
-        for nn in nn_layers:
-            output = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(output)
-        output = layers.Dense(1)(output)
+        inputs = keras.Input(shape=input_shape)
+        output = attention_block(inputs, num_heads)
 
-        # Create model
+        # Create an attentive model
         model = keras.models.Model(inputs=inputs, outputs=output)
 
         return model
@@ -375,7 +371,6 @@ if if_train_optim == 'restart':
     loss = None
     model = load_model_from_file(method, trained_model_file)
 else:
-    # Otherwise build a model from scratch to be abused by the optimisers
     model = get_me_a_model(method, datas.to_numpy(), dataf.to_numpy())
 
 
@@ -384,19 +379,23 @@ if if_train_optim == 'conventional':
     #_ Conventional optimisations
     loss = []
     if 'gpr' in method:
-        model = minimise_GPR_LML(method, model, datas.to_numpy(), dataf.to_numpy(),
-                                 trained_model_file, loss, casesetup, flightlog)
+        model, loss = minimise_GPR_LML(method, model, datas.to_numpy(), dataf.to_numpy(),
+                                       trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
-        minimise_NN_RMSE(method, model, datas.to_numpy(), dataf.to_numpy(),
-                         trained_model_file, loss, casesetup, flightlog)
+        model, loss = minimise_NN_RMSE(method, model, datas.to_numpy(), dataf.to_numpy(),
+                                       trained_model_file, loss, casesetup, flightlog)
 
 elif if_train_optim == 'diffusionloss':
     #_ My diffusion loss optimisation
     loss = []
     if 'gpr' in method:
-        model = minimise_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), laplacian_dataf, staggeredpts,
-                                            select_dimension, shape_train_mesh, shape_stagg_mesh, loss,
-                                            casesetup, flightlog)
+        model, loss = GPR_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
+                                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                                        trained_model_file, loss, casesetup, flightlog)
+    elif 'nn' in method:
+        model, loss = NN_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
+                                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                                        trained_model_file, loss, casesetup, flightlog)
 
 elif if_train_optim == 'nahimgood':
     #_ Just dry run
@@ -417,7 +416,7 @@ write_predicts_file(dafolder, testso, testf, meant)
 ### PLOTTING
 
 # training convergence
-if if_train_optim:
+if if_train_optim == 'conventional' or if_train_optim == 'diffusionloss':
     plt.plot(np.array(loss), label='Training Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Log(Loss)')

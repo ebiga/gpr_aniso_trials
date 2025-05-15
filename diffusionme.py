@@ -24,6 +24,7 @@ from gpflow.monitor import Monitor, MonitorTaskGroup
 
 # get my functions
 from auxfunctions import *
+from auxgpytorch  import *
 
 # set floats and randoms
 gpflow.config.set_default_float('float64')
@@ -100,13 +101,72 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
 
             return dsf_dD1s + dsf_dD2s
 
+# Tensorflow version - we only use for the staggered computations in the loop
+def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str, staggered=True):
+
+    def _laplacian_2d(f_orig, f_stag, staggered=True):
+        f_orig = tf.convert_to_tensor(f_orig, dtype=tf.float64)
+        f_stag = tf.convert_to_tensor(f_stag, dtype=tf.float64)
+        delta = tf.constant(2.0 * 0.5**2 if staggered else 2.0, dtype=tf.float64)
+
+        if staggered:
+            d1 = tf.abs(f_orig[2:, 2:] + f_orig[:-2, :-2] - f_stag[1:, 1:] - f_stag[:-1, :-1])
+            d1 /= (f_orig[2:, 2:] + f_orig[:-2, :-2] + f_stag[1:, 1:] + f_stag[:-1, :-1]) * (3. * delta)
+
+            d2 = tf.abs(f_orig[:-2, 2:] + f_orig[2:, :-2] - f_stag[:-1, 1:] - f_stag[1:, :-1])
+            d2 /= (f_orig[:-2, 2:] + f_orig[2:, :-2] + f_stag[:-1, 1:] + f_stag[1:, :-1]) * (3. * delta)
+        else:
+            center = f_orig[1:-1, 1:-1]
+            d1 = tf.abs(f_orig[2:, 2:] + f_orig[:-2, :-2] - 2. * center)
+            d1 /= (f_orig[2:, 2:] + f_orig[:-2, :-2] + 2. * center) * delta
+
+            d2 = tf.abs(f_orig[:-2, 2:] + f_orig[2:, :-2] - 2. * center)
+            d2 /= (f_orig[:-2, 2:] + f_orig[2:, :-2] + 2. * center) * delta
+
+        return d1 + d2
+
+
+    def _laplacian_3d(f_orig, f_stag, staggered=True):
+        f_orig = tf.convert_to_tensor(f_orig, dtype=tf.float64)
+        f_stag = tf.convert_to_tensor(f_stag, dtype=tf.float64)
+        delta = tf.constant(2.0 * 0.5**2 if staggered else 2.0, dtype=tf.float64)
+
+        if staggered:
+            d1 = tf.abs(f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] - f_stag[1:, 1:, 1:] - f_stag[:-1, :-1, :-1])
+            d1 /= (f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] + f_stag[1:, 1:, 1:] + f_stag[:-1, :-1, :-1]) * (3. * delta)
+
+            d2 = tf.abs(f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] - f_stag[:-1, 1:, 1:] - f_stag[1:, :-1, :-1])
+            d2 /= (f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] + f_stag[:-1, 1:, 1:] + f_stag[1:, :-1, :-1]) * (3. * delta)
+
+            d3 = tf.abs(f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] - f_stag[1:, :-1, 1:] - f_stag[:-1, 1:, :-1])
+            d3 /= (f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] + f_stag[1:, :-1, 1:] + f_stag[:-1, 1:, :-1]) * (3. * delta)
+        else:
+            center = f_orig[1:-1, 1:-1, 1:-1]
+            d1 = tf.abs(f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] - 2. * center)
+            d1 /= (f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] + 2. * center) * delta
+
+            d2 = tf.abs(f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] - 2. * center)
+            d2 /= (f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] + 2. * center) * delta
+
+            d3 = tf.abs(f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] - 2. * center)
+            d3 /= (f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] + 2. * center) * delta
+
+        return d1 + d2 + d3
+
+    if select_dimension == "3D":
+        return _laplacian_3d(f_orig, f_stag, staggered)
+    else:
+        return _laplacian_2d(f_orig, f_stag, staggered)
+
+
 
 
 ## FUNCTION: minimise the diffusion loss
 bound = scipy.optimize.Bounds(0.005,500.)
 
-def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimension,
-                                shape_train_mesh, shape_stagg_mesh, histories, casesetup, flightlog):
+def GPR_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
+                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                        trained_model_file, histories, casesetup, flightlog):
 
     ## Get the user inputs from Jason
     #_ Optimiser options
@@ -164,5 +224,97 @@ def minimise_training_laplacian(model, DATAX, DATAF, LAPLF, STAGX, select_dimens
     print(msg)
     flightlog.write(msg+'\n')
 
-    return model
+    return model, histories
 
+
+
+
+## CLASS: define a Laplace diffusion loss for a NN model
+class LaplacianModel(keras.Model):
+    def __init__(self, base_model, DATAX, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension):
+        super().__init__()
+        self.base_model = base_model
+
+        self.DATAX = DATAX
+        self.STAGX = STAGX
+        self.LAPLF = tf.convert_to_tensor(LAPLF)
+
+        self.shape_train_mesh = shape_train_mesh
+        self.shape_stagg_mesh = shape_stagg_mesh
+        self.select_dimension = select_dimension
+
+        self.loss_tracker = keras.metrics.Mean(name="loss")
+
+    def compile(self, optimizer):
+        super().compile()
+        self.optimizer = optimizer
+
+    def call(self, inputs, training=False):
+        return self.base_model(inputs, training=training)
+
+    def train_step(self, data):
+        with tf.GradientTape() as tape:
+            x_batch, y_batch = data
+
+            #_ Training loss
+            y_pred_batch = self.base_model(x_batch, training=True)
+            loss_e = tf.reduce_mean(tf.square(y_batch - tf.squeeze(y_pred_batch)))
+
+            #_ Diffusion loss
+            #__ this is performed in the whole mesh cause the differentiation
+            predf = self.base_model(self.DATAX, training=True)
+            predf_staggered = self.base_model(self.STAGX, training=True)
+
+            predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(predf, self.shape_train_mesh, self.select_dimension)
+            predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
+
+            laplacian_pred = tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
+
+            loss_m = tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
+
+            loss = loss_e + loss_m
+
+        grads = tape.gradient(loss, self.base_model.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.base_model.trainable_variables))
+        self.loss_tracker.update_state(loss)
+        return {"loss": self.loss_tracker.result()}
+
+    @property
+    def metrics(self):
+        return [self.loss_tracker]
+
+
+
+
+## FUNCTION: minimises the RMSE for NNs
+def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
+                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                        trained_model_file, histories, casesetup, flightlog):
+
+    # get the user inputs from Jason
+    keras_options = casesetup['keras_setup']
+
+    # give the base model to the Laplacian model
+    model = LaplacianModel(
+        base_model=model,
+        DATAX=DATAX,
+        STAGX=STAGX,
+        LAPLF=LAPLF,
+        shape_train_mesh=shape_train_mesh,
+        shape_stagg_mesh=shape_stagg_mesh,
+        select_dimension=select_dimension,
+    )
+
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
+
+    history = model.fit(
+        DATAX,
+        DATAF,
+        verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
+        )
+    histories = np.log(history.history['loss'])
+
+    # store the model for reuse
+    model.save(trained_model_file)
+
+    return model, histories
