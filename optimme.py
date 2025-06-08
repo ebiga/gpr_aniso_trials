@@ -20,6 +20,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
+from keras.callbacks import ReduceLROnPlateau
 
 # get my functions
 from auxfunctions import *
@@ -140,12 +141,16 @@ def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, case
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
 
+    # adaptive learning rate for good measure
+    reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.5, patience=250, cooldown=50, verbose=1, min_lr=1e-5)
+
     model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
     history = model.fit(
         DATAX,
         DATAF,
         verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
+        callbacks=[reduce_lr],
         )
     loss = np.log(history.history['loss'])
 
