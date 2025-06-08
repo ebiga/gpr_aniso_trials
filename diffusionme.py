@@ -270,9 +270,11 @@ class LaplacianModel(keras.Model):
 
             laplacian_pred = tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
 
-            loss_m = tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
+            #_ Regularization
+            reg_loss = tf.add_n(self.base_model.losses) if self.base_model.losses else 0.0
 
-            loss = loss_e + loss_m
+            #_ Assemble
+            loss = loss_e + loss_m + reg_loss
 
         grads = tape.gradient(loss, self.base_model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.base_model.trainable_variables))
