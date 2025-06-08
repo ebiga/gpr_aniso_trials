@@ -10,7 +10,7 @@ import gpytorch
 
 import tensorflow as tf
 from tensorflow import keras
-from keras import layers
+from keras import layers, regularizers
 
 # set floats and randoms
 gpflow.config.set_default_float('float64')
@@ -220,5 +220,5 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
 def build_nn_trunk(input_tensor, nn_layers):
     x = input_tensor
     for nn in nn_layers:
-        x = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(x)
+        x = layers.Dense(nn, activation='elu', kernel_initializer='he_normal', kernel_regularizer=regularizers.L2(np.float64(1.e-8)))(x)
     return layers.Dense(1)(x)
