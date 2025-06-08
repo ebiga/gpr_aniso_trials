@@ -258,7 +258,7 @@ class LaplacianModel(keras.Model):
 
             #_ Training loss
             y_pred_batch = self.base_model(x_batch, training=True)
-            loss_e = tf.reduce_mean(tf.square(y_batch - tf.squeeze(y_pred_batch)))
+            loss_e = tf.reduce_mean(tf.abs(y_batch - tf.squeeze(y_pred_batch)))
 
             #_ Diffusion loss
             #__ this is performed in the whole mesh cause the differentiation
