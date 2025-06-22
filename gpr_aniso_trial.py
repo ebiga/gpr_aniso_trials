@@ -305,8 +305,7 @@ NormMin = np.full(Ndimensions, 0.)
 NormDlt = np.full(Ndimensions, 1.)
 
 for i, b in enumerate(brkpts):
-    datalocl = dataso[b]
-    NormMini = datalocl[np.argmin(np.abs(datalocl - 0.5 * (np.max(datalocl) + np.min(datalocl))))]
+    NormMini = np.min(dataso[b])
 
     NormDlt[i] = Dgrid[i]
     NormMin[i] = NormMini/NormDlt[i]
