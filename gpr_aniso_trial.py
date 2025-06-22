@@ -555,11 +555,15 @@ for k, v in enumerate(param3_cases):
 
 
 # Laplacians
+#_ ref Lapacian of the non-scaled function
+DDDo = reshape_flatarray_like_reference_meshgrid(datafo.to_numpy(), shape_train_mesh, select_dimension)
+laplacian_dataf = compute_Laplacian(DDDo, DDDo, select_dimension)
+
 #_ Build the staggered mesh info to plot and write out the RMSE
-predf = my_predicts(model, datas.to_numpy())
+predf = my_predicts(model, datas.to_numpy(), scale=True)
 predf_mesh = reshape_flatarray_like_reference_meshgrid(predf, shape_train_mesh, select_dimension)
 
-predf_staggered = my_predicts(model, staggeredpts)
+predf_staggered = my_predicts(model, staggeredpts, scale=True)
 predf_staggeredmesh = predf_staggered.reshape(shape_stagg_mesh)
 
 laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh, select_dimension)
