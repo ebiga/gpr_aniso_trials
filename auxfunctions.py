@@ -115,30 +115,38 @@ def check_mean(atest, mean, refd):
 
 
 ## My wrapper of predict functions
-def my_predicts(model, X):
-    module = type(model).__module__
-    
-    if "sklearn" in module:
-        return model.predict(X, return_cov=False)
-    
-    elif "gpflow" in module:
-        return model.predict_f(X)[0].numpy().reshape(-1)
-    
-    elif "tensorflow" in module or "keras" in module:
-        return model.predict(X).reshape(-1)
-    
-    elif isinstance(model, gpytorch.models.GP):
-        model.eval()
-        model.likelihood.eval()
-        with gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False, solves=False):
-            with torch.no_grad():
-                return model(torch.tensor(X)).mean.detach().numpy()
+def my_predicts(model, X, scale=False):
+    def my_predicts_base(model, X):
+        module = type(model).__module__
+        
+        if "sklearn" in module:
+            return model.predict(X, return_cov=False)
+        
+        elif "gpflow" in module:
+            return model.predict_f(X)[0].numpy().reshape(-1)
+        
+        elif "tensorflow" in module or "keras" in module:
+            return model.predict(X).reshape(-1)
+        
+        elif isinstance(model, gpytorch.models.GP):
+            model.eval()
+            model.likelihood.eval()
+            with gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False, solves=False):
+                with torch.no_grad():
+                    return model(torch.tensor(X)).mean.detach().numpy()
 
-    elif "LaplacianModel" in type(model).__name__:
-        return model.predict(X).reshape(-1)
+        elif "LaplacianModel" in type(model).__name__:
+            return model.predict(X).reshape(-1)
 
+        else:
+            raise TypeError(f"Unsupported model type: {type(model)}")
+    
+    dataout = my_predicts_base(model, X)
+
+    if scale:
+        return np.power(dataout, 1/0.1)
     else:
-        raise TypeError(f"Unsupported model type: {type(model)}")
+        return dataout
 
 
 

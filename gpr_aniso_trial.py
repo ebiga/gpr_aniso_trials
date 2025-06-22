@@ -267,7 +267,7 @@ elif select_dimension == '2D':
     filtin = data_base.loc[(data_base['param3'] == param3fix)].index
 
 dataso = data_base.loc[filtin][brkpts].astype(np.float64)
-dataf  = data_base.loc[filtin][output].astype(np.float64)
+datafo = data_base.loc[filtin][output].astype(np.float64)
 
 if select_dimension == '3D':
     filtin = test_base.index
@@ -275,10 +275,13 @@ elif select_dimension == '2D':
     filtin = test_base.loc[(test_base['param3'] == param3fix)].index
 
 testso = test_base.loc[filtin][brkpts].astype(np.float64)
-testf  = test_base.loc[filtin][output].astype(np.float64)
+testfo = test_base.loc[filtin][output].astype(np.float64)
 
 
 # Make the breakpoints nondimensional by unitary grid spacing
+dataf = np.power(datafo.copy(), 0.1)
+testf = np.power(testfo.copy(), 0.1)
+
 datas = dataso.copy()
 tests = testso.copy()
 
@@ -305,8 +308,7 @@ NormMin = np.full(Ndimensions, 0.)
 NormDlt = np.full(Ndimensions, 1.)
 
 for i, b in enumerate(brkpts):
-    datalocl = dataso[b]
-    NormMini = datalocl[np.argmin(np.abs(datalocl - 0.5 * (np.max(datalocl) + np.min(datalocl))))]
+    NormMini = np.min(dataso[b])
 
     NormDlt[i] = Dgrid[i]
     NormMin[i] = NormMini/NormDlt[i]
@@ -404,11 +406,11 @@ elif if_train_optim == 'nahimgood':
 
 
 # Predict and evaluate
-meanf = my_predicts(model, datas.to_numpy())
-meant = my_predicts(model, tests.to_numpy())
-flightlog.write(check_mean("Training", meanf, dataf.to_numpy()))
-flightlog.write(check_mean("Testing", meant, testf.to_numpy()))
-write_predicts_file(dafolder, testso, testf, meant)
+meanf = my_predicts(model, datas.to_numpy(), scale=True)
+meant = my_predicts(model, tests.to_numpy(), scale=True)
+flightlog.write(check_mean("Training", meanf, datafo.to_numpy()))
+flightlog.write(check_mean("Testing", meant, testfo.to_numpy()))
+write_predicts_file(dafolder, testso, testfo, meant)
 
 
 
@@ -466,12 +468,12 @@ for k, v in enumerate(param3_cases):
     for i, b in enumerate(brkpts):
         S[b] = So[b]/NormDlt[i] - NormMin[i]
 
-    Z2 = my_predicts(model, S.to_numpy()).reshape(ngrid, ngrid)
+    Z2 = my_predicts(model, S.to_numpy(), scale=True).reshape(ngrid, ngrid)
 
     COF = plt.contour(X, Y, Z2, levels=levels, linestyles='dashed', linewidths=0.5)
 
     # fetch the reference data
-    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(Ngrid[1], Ngrid[0])
+    Z1 = datafo.loc[filtered_indices].to_numpy().reshape(Ngrid[1], Ngrid[0])
 
     COU = plt.contour(XXo, YYo, Z1, levels=levels, linestyles='solid', linewidths=1)
 
@@ -531,14 +533,14 @@ for k, v in enumerate(param3_cases):
     for i, b in enumerate(brkpts):
         S[b] = So[b]/NormDlt[i] - NormMin[i]
 
-    Z2 = my_predicts(model, S.to_numpy()).reshape(ngrid, ngrid)
+    Z2 = my_predicts(model, S.to_numpy(), scale=True).reshape(ngrid, ngrid)
 
     ax.plot_surface(XX, YY, Z2, cmap=cm.seismic, linewidth=0, alpha=0.5, antialiased=True, label="Fitted")
 
     # fetch the reference data
     XX, YY = np.meshgrid(XXo, YYo)
 
-    Z1 = dataf.loc[filtered_indices].to_numpy().reshape(Ngrid[1], Ngrid[0])
+    Z1 = datafo.loc[filtered_indices].to_numpy().reshape(Ngrid[1], Ngrid[0])
 
     ax.plot_wireframe(XX, YY, Z1, color='black', linewidth=0.4, label="Reference")
 
@@ -666,7 +668,7 @@ for c in param1_param2_cases:
 
         # get the scattered points closest to the references
         XR = dataso.loc[closest_points_index][pranged]
-        FR = dataf[closest_points_index]
+        FR = datafo[closest_points_index]
 
         # Fit the data to generate the plot
         if select_dimension == '3D':
@@ -687,7 +689,7 @@ for c in param1_param2_cases:
         for i, b in enumerate(brkpts):
             X[b] = Xo[b]/NormDlt[i] - NormMin[i]
 
-        Y1 = my_predicts(model, X.to_numpy())
+        Y1 = my_predicts(model, X.to_numpy(), scale=True)
 
         # plot
         plt.plot(param_range, Y1.T, lw=0.5, label='Fitted')
@@ -733,7 +735,7 @@ for i in range(num_points):
         color_index = 0
 
     ax.scatter(
-        testf.to_numpy()[i], meant[i],
+        testfo.to_numpy()[i], meant[i],
         color=colors[color_index],
         marker=markers[param2_q[i]],
         s=sizes[param1_q[i]],
