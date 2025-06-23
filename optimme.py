@@ -21,6 +21,7 @@ from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
 from keras.callbacks import ReduceLROnPlateau
+from keras_tuner.tuners import RandomSearch
 
 # get my functions
 from auxfunctions import *
@@ -137,9 +138,9 @@ def minimise_GPR_LML(method, model, DATAX, DATAF, trained_model_file, loss, case
 
 ## FUNCTION: minimises the RMSE for NNs
 def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, casesetup, flightlog):
-
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
+    if_nn_tuning = True
 
     # adaptive learning rate for good measure
     callbacks_list = []
@@ -147,7 +148,40 @@ def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, case
         reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.5, patience=250, cooldown=50, verbose=1, min_lr=1e-5)
         callbacks_list.append(reduce_lr)
 
-    model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
+    if if_nn_tuning:
+        tuner_dir = os.path.join("tuner_logs", flightlog if flightlog else "default_run")
+
+        # we build a generic model here
+        input_shape = DATAX.shape[1:]
+        build_model = make_build_model(input_shape)
+
+        # and everything under the sun is in tune
+        tuner = RandomSearch(
+            build_model,
+            objective="val_loss",
+            max_trials=keras_options.get("max_trials", 20),
+            executions_per_trial=1,
+            directory=tuner_dir,
+            project_name="nn_trunk_tuning",
+            overwrite=True
+        )
+
+        tuner.search(
+            DATAX,
+            DATAF,
+            epochs=keras_options["epochs"],
+            batch_size=keras_options["batch_size"],
+            validation_split=0.2,
+            callbacks=[reduce_lr],
+            verbose=1
+        )
+
+        # get best model
+        model = tuner.get_best_models(num_models=1)[0]
+
+    else:
+        # We just compile what we got
+        model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
     # let's try this babe
     history = model.fit(

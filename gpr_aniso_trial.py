@@ -102,6 +102,7 @@ def get_me_a_model(method, DATAX, DATAF):
     #_ Define nn parameters for... well, NNs
     if 'nn' in method:
         nn_layers = casesetup['keras_setup']["hidden_layers"]
+        if_nn_tuning = True
 
 
     ## Each method has its own ways
@@ -171,34 +172,38 @@ def get_me_a_model(method, DATAX, DATAF):
 
     #_ NN, Dense
     elif method == 'nn.dense':
-        # Setup the neural network
-        input_shape = DATAX.shape[1:]
+        model = None
+        if not if_nn_tuning:
+            # Setup the neural network
+            input_shape = DATAX.shape[1:]
 
-        inputs = tf.keras.Input(shape=input_shape)
-        output = build_nn_trunk(inputs, nn_layers)
+            inputs = tf.keras.Input(shape=input_shape)
+            output = build_nn_trunk(inputs, nn_layers)
 
-        # Define the model to get it out in the world
-        model = tf.keras.Model(inputs=inputs, outputs=output)
+            # Define the model to get it out in the world
+            model = tf.keras.Model(inputs=inputs, outputs=output)
 
         return model
 
     #_ NN with Attention
     elif method == 'nn.attention':
-        # Setup the neural network
-        input_shape = DATAX.shape[1:]
-        num_heads = casesetup['keras_setup']["multiheadattention_setup"]["num_heads"]
+        model = None
+        if not if_nn_tuning:
+            # Setup the neural network
+            input_shape = DATAX.shape[1:]
+            num_heads = casesetup['keras_setup']["multiheadattention_setup"]["num_heads"]
 
-        def attention_block(input_tensor, num_heads):
-            re_inputs = ExpandALayer()(input_tensor)
-            attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
-            output = SqueezeALayer()(attention_output)
-            return build_nn_trunk(output)
+            def attention_block(input_tensor, num_heads):
+                re_inputs = ExpandALayer()(input_tensor)
+                attention_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=Ndimensions)(re_inputs, re_inputs)
+                output = SqueezeALayer()(attention_output)
+                return build_nn_trunk(output)
 
-        inputs = keras.Input(shape=input_shape)
-        output = attention_block(inputs, num_heads)
+            inputs = keras.Input(shape=input_shape)
+            output = attention_block(inputs, num_heads)
 
-        # Create an attentive model
-        model = keras.models.Model(inputs=inputs, outputs=output)
+            # Create an attentive model
+            model = keras.models.Model(inputs=inputs, outputs=output)
 
         return model
 

@@ -12,6 +12,7 @@ import tensorflow as tf
 from tensorflow import keras
 from keras import layers, regularizers
 from keras.utils import get_custom_objects
+from keras_tuner import HyperParameters
 
 # set floats and randoms
 gpflow.config.set_default_float('float64')
@@ -224,6 +225,19 @@ def build_nn_trunk(input_tensor, nn_layers):
         x = layers.Dense(nn, activation=LeakyELU(beta=0.4), kernel_initializer='he_normal')(x)
     return layers.Dense(1)(x)
 
+def make_build_model(input_shape):
+    def build_nn_trunk_tuner(hp):
+        x = tf.keras.Input(shape=input_shape)
+
+        nn_layers = hp.Int('num_layers', min_value=4, max_value=8)
+
+        for i in range(nn_layers):
+            units = hp.Int(f"units_{i}", min_value=60, max_value=600, step=60)
+            x = layers.Dense(units, kernel_initializer='he_normal')(x)
+            x = LeakyELU()(x)
+
+        return layers.Dense(1)(x)
+    return build_nn_trunk_tuner
 
 
 
