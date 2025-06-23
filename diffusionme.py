@@ -314,15 +314,22 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
 
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
-    # adaptive learning rate for good measure
-    reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.5, patience=250, cooldown=50, verbose=1, min_lr=1e-5)
-    laplstep_ = FixedStepLossMWeight(model, step_every=500, step_size=0.1, max_weight=1.0)
+    # adaptive learning rates for good measure, incl a ramp for the diffusion loss cause it's just too much
+    callbacks_list = []
 
+    if keras_options['if_learning_rate_schedule']:
+        reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.5, patience=250, cooldown=50, verbose=1, min_lr=1e-5)
+        callbacks_list.append(reduce_lr)
+
+    laplstep_ = FixedStepLossMWeight(model, step_every=500, step_size=0.1, max_weight=1.0)
+    callbacks_list.append(laplstep_)
+
+    # let's try this babe
     history = model.fit(
         DATAX,
         DATAF,
         verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
-        callbacks=[laplstep_,reduce_lr],
+        callbacks=callbacks_list,
         )
     histories = np.log(history.history['loss'])
 
