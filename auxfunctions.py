@@ -10,7 +10,8 @@ import gpytorch
 
 import tensorflow as tf
 from tensorflow import keras
-from keras import layers
+from keras import layers, regularizers
+from keras.utils import get_custom_objects
 
 # set floats and randoms
 gpflow.config.set_default_float('float64')
@@ -220,5 +221,31 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
 def build_nn_trunk(input_tensor, nn_layers):
     x = input_tensor
     for nn in nn_layers:
-        x = layers.Dense(nn, activation='elu', kernel_initializer='he_normal')(x)
+        x = layers.Dense(nn, activation=LeakyELU(beta=0.4), kernel_initializer='he_normal')(x)
     return layers.Dense(1)(x)
+
+
+
+
+# Custom activation function, this is like a leaky ELU
+class LeakyELU(tf.keras.layers.Layer):
+    def __init__(self, beta=0.4, **kwargs):
+        super().__init__(**kwargs)
+        self.beta = beta
+
+    def call(self, inputs):
+        pos = tf.where(inputs > 0, inputs, tf.zeros_like(inputs))
+        neg = tf.where(
+            inputs <= 0,
+            tf.exp((1.0 - self.beta) * inputs) - 1.0 + self.beta * inputs,
+            tf.zeros_like(inputs)
+        )
+        return pos + neg
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({'beta': self.beta})
+        return config
+
+# Register so it can be used in model configs
+get_custom_objects().update({'LeakyELU': LeakyELU})

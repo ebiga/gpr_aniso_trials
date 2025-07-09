@@ -21,6 +21,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
+from keras.callbacks import ReduceLROnPlateau
 
 # get my functions
 from auxfunctions import *
@@ -245,6 +246,8 @@ class LaplacianModel(keras.Model):
 
         self.loss_tracker = keras.metrics.Mean(name="loss")
 
+        self.loss_m_weight = tf.Variable(0.0, trainable=False, dtype=tf.float64)
+
     def compile(self, optimizer):
         super().compile()
         self.optimizer = optimizer
@@ -258,7 +261,7 @@ class LaplacianModel(keras.Model):
 
             #_ Training loss
             y_pred_batch = self.base_model(x_batch, training=True)
-            loss_e = tf.reduce_mean(tf.square(y_batch - tf.squeeze(y_pred_batch)))
+            loss_e = tf.reduce_mean(tf.abs(y_batch - tf.squeeze(y_pred_batch)))
 
             #_ Diffusion loss
             #__ this is performed in the whole mesh cause the differentiation
@@ -270,9 +273,13 @@ class LaplacianModel(keras.Model):
 
             laplacian_pred = tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
 
-            loss_m = tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
+            loss_m = self.loss_m_weight * tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
 
-            loss = loss_e + loss_m
+            #_ Regularization
+            reg_loss = tf.add_n(self.base_model.losses) if self.base_model.losses else 0.0
+
+            #_ Assemble
+            loss = loss_e + loss_m + reg_loss
 
         grads = tape.gradient(loss, self.base_model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.base_model.trainable_variables))
@@ -307,10 +314,22 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
 
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
+    # adaptive learning rates for good measure, incl a ramp for the diffusion loss cause it's just too much
+    callbacks_list = []
+
+    if keras_options['if_learning_rate_schedule']:
+        reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.5, patience=250, cooldown=50, verbose=1, min_lr=1e-5)
+        callbacks_list.append(reduce_lr)
+
+    laplstep_ = FixedStepLossMWeight(model, step_every=500, step_size=0.1, max_weight=1.0)
+    callbacks_list.append(laplstep_)
+
+    # let's try this babe
     history = model.fit(
         DATAX,
         DATAF,
         verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
+        callbacks=callbacks_list,
         )
     histories = np.log(history.history['loss'])
 
@@ -318,3 +337,24 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
     model.save(trained_model_file)
 
     return model, histories
+
+
+
+
+## FUNCTION: Increases loss_m_weight by step_size every `step_every` epochs.
+class FixedStepLossMWeight(tf.keras.callbacks.Callback):
+    def __init__(self, model_ref, step_every=5, step_size=0.1, max_weight=1.0):
+        super().__init__()
+        self.model_ref = model_ref
+        self.step_every = step_every
+        self.step_size  = step_size
+        self.max_weight = max_weight
+        self.prev_weight = -1.0
+
+    def on_epoch_begin(self, epoch, logs=None):
+        step_count = epoch // self.step_every
+        new_weight = min(step_count * self.step_size, self.max_weight)
+        if new_weight != self.prev_weight:
+            print(f"Epoch {epoch+1}: loss_m_weight = {new_weight:.2e}")
+            self.prev_weight = new_weight
+        self.model_ref.loss_m_weight.assign(new_weight)

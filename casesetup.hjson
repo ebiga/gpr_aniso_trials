@@ -71,6 +71,7 @@ GPR_setup:
 keras_setup:
 {
     learning_rate: 0.002,
+    if_learning_rate_schedule: false,
     epochs: 2500,
     batch_size: 32,
     hidden_layers: [8, 4],
