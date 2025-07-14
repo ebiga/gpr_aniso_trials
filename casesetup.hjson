@@ -13,7 +13,8 @@ select_dimension: '3D'
 #  'gpr.gpytorch' GPR by GPYTorch
 #  'nn.dense': Neural Network by tensorflow/keras usual Dense
 #  'nn.attention': Neural Network by tensorflow/keras with an Attention layer
-method: 'gpr.gpflow'
+#  'interp.scipy': just read it...
+method: 'interp.scipy'
 
 # let the hyperparameters by optimised by a few methods, or just run, or just restart
 #  'conventional': LML for GPR, RMSE for NN

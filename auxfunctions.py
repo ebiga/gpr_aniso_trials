@@ -137,6 +137,9 @@ def my_predicts(model, X):
     elif "LaplacianModel" in type(model).__name__:
         return model.predict(X).reshape(-1)
 
+    elif "interpolate" in module:
+        return model(X)
+
     else:
         raise TypeError(f"Unsupported model type: {type(model)}")
 
