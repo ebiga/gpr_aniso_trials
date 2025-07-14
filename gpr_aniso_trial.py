@@ -33,7 +33,7 @@ from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator, RBFInterpolator
 
 # get my functions
 from auxfunctions import *
@@ -209,7 +209,9 @@ def get_me_a_model(method, DATAX, DATAF):
     elif method == 'interp.scipy':
         assert select_dimension == '3D', "spline.splipy only supports 3D"
 
-        model = RegularGridInterpolator((XX, YY, ZZ), DDD, method='pchip')
+        #model = RegularGridInterpolator((XX, YY, ZZ), DDD, method='pchip')
+        model = RegularGridInterpolator((XX, YY, ZZ), DDD, method='cubic')
+        #model = RBFInterpolator(DATAX, DATAF, kernel='thin_plate_spline', smoothing=0)
 
         return model
 
