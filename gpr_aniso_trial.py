@@ -33,6 +33,7 @@ from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
+from scipy.interpolate import RegularGridInterpolator
 
 # get my functions
 from auxfunctions import *
@@ -67,6 +68,8 @@ def model_filename(method, dafolder):
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
     elif method == 'nn.attention':
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
+    elif method == 'interp.scipy':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
 
     return trained_model_file
 
@@ -199,6 +202,14 @@ def get_me_a_model(method, DATAX, DATAF):
 
         # Create an attentive model
         model = keras.models.Model(inputs=inputs, outputs=output)
+
+        return model
+    
+    #_ SPLINE: Splipy
+    elif method == 'interp.scipy':
+        assert select_dimension == '3D', "spline.splipy only supports 3D"
+
+        model = RegularGridInterpolator((XX, YY, ZZ), DDD, method='pchip')
 
         return model
 
