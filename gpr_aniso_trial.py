@@ -361,7 +361,7 @@ elif select_dimension == '2D':
 
 
 # We'll need the shapes for managing in and out of the IJ meshgrid in the reversed order
-shape_train_mesh = M_i.shape[::-1]
+shape_train_mesh = np.shape(M_i)
 shape_stagg_mesh = np.shape(staggeredpts_i)
 
 # Store the reference Laplacian metric
