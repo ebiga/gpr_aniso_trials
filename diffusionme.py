@@ -232,16 +232,15 @@ def GPR_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
 
 ## CLASS: define a Laplace diffusion loss for a NN model
 class LaplacianModel(keras.Model):
-    def __init__(self, base_model, DATAX, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension):
+    def __init__(self, base_model, DATAX, DATAF, STAGX, LAPLF, shape_full, select_dimension):
         super().__init__()
         self.base_model = base_model
-
-        self.DATAX = DATAX
-        self.STAGX = STAGX
+        self.DATAX = tf.convert_to_tensor(DATAX)
+        self.DATAF = tf.convert_to_tensor(DATAF)
+        self.STAGX = tf.convert_to_tensor(STAGX)
         self.LAPLF = tf.convert_to_tensor(LAPLF)
 
-        self.shape_train_mesh = shape_train_mesh
-        self.shape_stagg_mesh = shape_stagg_mesh
+        self.shape_full = shape_full
         self.select_dimension = select_dimension
 
         self.loss_tracker = keras.metrics.Mean(name="loss")
@@ -255,60 +254,91 @@ class LaplacianModel(keras.Model):
     def call(self, inputs, training=False):
         return self.base_model(inputs, training=training)
 
-    def train_step(self, data):
+    def _get_coords(self, flat_idx):
+        ny, nz = self.shape_full[1], self.shape_full[2]
+        x = flat_idx // (ny * nz)
+        y = (flat_idx % (ny * nz)) // nz
+        z = (flat_idx % (ny * nz)) % nz
+        return x, y, z
+
+    def _get_laplacian_index(self, x, y, z):
+        ny, nz = self.shape_full[1], self.shape_full[2]
+        return (x - 1) * (ny - 2) * (nz - 2) + (y - 1) * (nz - 2) + (z - 1)
+
+    def _get_staggered_index(self, x, y, z):
+        ny, nz = self.shape_full[1], self.shape_full[2]
+        return x * (ny - 1) * (nz - 1) + y * (nz - 1) + z
+
+    def train_step(self, center_indices):
+        ny, nz = self.shape_full[1], self.shape_full[2]
+        center_indices = tf.convert_to_tensor(center_indices)
+
         with tf.GradientTape() as tape:
-            x_batch, y_batch = data
+            x_batch = tf.gather(self.DATAX, center_indices)
+            y_batch = tf.gather(self.DATAF, center_indices)
+            pred = self.base_model(x_batch, training=True)
+            loss_e = tf.reduce_mean(tf.abs(tf.squeeze(pred) - tf.squeeze(y_batch)))
 
-            #_ Training loss
-            y_pred_batch = self.base_model(x_batch, training=True)
-            loss_e = tf.reduce_mean(tf.abs(y_batch - tf.squeeze(y_pred_batch)))
+            stag_indices, lapl_indices = [], []
+            for idx in center_indices.numpy():
+                x, y, z = self._get_coords(idx)
+                if 1 <= x < self.shape_full[0] - 1 and 1 <= y < ny - 1 and 1 <= z < nz - 1:
+                    stag_idx = self._get_staggered_index(x, y, z)
+                    lapl_idx = self._get_laplacian_index(x, y, z)
+                    stag_indices.append(stag_idx)
+                    lapl_indices.append(lapl_idx)
 
-            #_ Diffusion loss
-            #__ this is performed in the whole mesh cause the differentiation
-            predf = self.base_model(self.DATAX, training=True)
-            predf_staggered = self.base_model(self.STAGX, training=True)
+            stagx_batch = tf.gather(self.STAGX, stag_indices)
+            laplf_batch = tf.gather(self.LAPLF, lapl_indices)
+            pred_stag = self.base_model(stagx_batch, training=True)
 
-            predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(predf, self.shape_train_mesh, self.select_dimension)
-            predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
+            # assume 1D patches for scalar Laplacian loss
+            lap_pred = tf_compute_Laplacian(tf.squeeze(pred), tf.squeeze(pred_stag), self.select_dimension)
+            loss_m = self.loss_m_weight * tf.reduce_mean(tf.square(laplf_batch - lap_pred))
+            loss = loss_e + loss_m
 
-            laplacian_pred = tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
-
-            loss_m = self.loss_m_weight * tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
-
-            #_ Regularization
             reg_loss = tf.add_n(self.base_model.losses) if self.base_model.losses else 0.0
-
-            #_ Assemble
-            loss = loss_e + loss_m + reg_loss
+            loss += reg_loss
 
         grads = tape.gradient(loss, self.base_model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.base_model.trainable_variables))
         self.loss_tracker.update_state(loss)
-        return {"loss": self.loss_tracker.result()}
+        return {"loss": self.loss_tracker.result(), "mae": loss_e, "diff": loss_m}
 
     @property
     def metrics(self):
         return [self.loss_tracker]
 
 
+def generate_center_indices(shape):
+    nx, ny, nz = shape
+    indices = []
+    for x in range(1, nx - 1):
+        for y in range(1, ny - 1):
+            for z in range(1, nz - 1):
+                flat_idx = x * ny * nz + y * nz + z
+                indices.append(flat_idx)
+    return np.array(indices, dtype=np.int32)
 
 
-## FUNCTION: minimises the RMSE for NNs
 def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
-                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                        shape_train_mesh, select_dimension,
                         trained_model_file, histories, casesetup, flightlog):
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
+    center_indices = generate_center_indices(shape_train_mesh)
+
+    LAPLF = LAPLF.flatten()
 
     # give the base model to the Laplacian model
     model = LaplacianModel(
         base_model=model,
         DATAX=DATAX,
+        DATAF=DATAF,
         STAGX=STAGX,
         LAPLF=LAPLF,
-        shape_train_mesh=shape_train_mesh,
-        shape_stagg_mesh=shape_stagg_mesh,
+        shape_full=shape_train_mesh,
         select_dimension=select_dimension,
     )
 
@@ -326,8 +356,7 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
 
     # let's try this babe
     history = model.fit(
-        DATAX,
-        DATAF,
+        center_indices,
         verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
         callbacks=callbacks_list,
         )
