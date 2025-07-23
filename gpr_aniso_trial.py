@@ -406,7 +406,7 @@ elif if_train_optim == 'diffusionloss':
                                         trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
         model, loss = NN_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
-                                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                                        shape_train_mesh, select_dimension,
                                         trained_model_file, loss, casesetup, flightlog)
 
 elif if_train_optim == 'nahimgood':

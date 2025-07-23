@@ -261,42 +261,65 @@ class LaplacianModel(keras.Model):
         z = (flat_idx % (ny * nz)) % nz
         return x, y, z
 
-    def _get_laplacian_index(self, x, y, z):
-        ny, nz = self.shape_full[1], self.shape_full[2]
-        return (x - 1) * (ny - 2) * (nz - 2) + (y - 1) * (nz - 2) + (z - 1)
-
-    def _get_staggered_index(self, x, y, z):
-        ny, nz = self.shape_full[1], self.shape_full[2]
-        return x * (ny - 1) * (nz - 1) + y * (nz - 1) + z
+    def _get_flat_index(self, x, y, z, shape):
+        return x * shape[1] * shape[2] + y * shape[2] + z
 
     def train_step(self, center_indices):
         ny, nz = self.shape_full[1], self.shape_full[2]
         center_indices = tf.convert_to_tensor(center_indices)
 
         with tf.GradientTape() as tape:
+            #_ mean absolute error
             x_batch = tf.gather(self.DATAX, center_indices)
             y_batch = tf.gather(self.DATAF, center_indices)
             pred = self.base_model(x_batch, training=True)
             loss_e = tf.reduce_mean(tf.abs(tf.squeeze(pred) - tf.squeeze(y_batch)))
 
-            stag_indices, lapl_indices = [], []
+            #_ diffusion loss
+            lap_pred_list = []
+            lap_true_list = []
             for idx in center_indices.numpy():
                 x, y, z = self._get_coords(idx)
+
                 if 1 <= x < self.shape_full[0] - 1 and 1 <= y < ny - 1 and 1 <= z < nz - 1:
-                    stag_idx = self._get_staggered_index(x, y, z)
-                    lapl_idx = self._get_laplacian_index(x, y, z)
-                    stag_indices.append(stag_idx)
-                    lapl_indices.append(lapl_idx)
 
-            stagx_batch = tf.gather(self.STAGX, stag_indices)
-            laplf_batch = tf.gather(self.LAPLF, lapl_indices)
-            pred_stag = self.base_model(stagx_batch, training=True)
+                    # gather local staggered points for Laplacian
+                    staggered_mesh = []
+                    for dx in [-1, 0]:
+                        for dy in [-1, 0]:
+                            for dz in [-1, 0]:
+                                stag_x, stag_y, stag_z = x + dx, y + dy, z + dz
+                                stag_flat = self._get_flat_index(stag_x, stag_y, stag_z,
+                                                                (self.shape_full[0] - 1, ny - 1, nz - 1))
+                                staggered_mesh.append(self.STAGX[stag_flat])
 
-            # assume 1D patches for scalar Laplacian loss
-            lap_pred = tf_compute_Laplacian(tf.squeeze(pred), tf.squeeze(pred_stag), self.select_dimension)
-            loss_m = self.loss_m_weight * tf.reduce_mean(tf.square(laplf_batch - lap_pred))
+                    # gather local neighbouring points for Laplacian
+                    neighbour_mesh = []
+                    for dx in [-1, 1]:
+                        for dy in [-1, 1]:
+                            for dz in [-1, 1]:
+                                neig_x, neig_y, neig_z = x + dx, y + dy, z + dz
+                                neig_flat = self._get_flat_index(neig_x, neig_y, neig_z,
+                                                                (self.shape_full[0] - 1, ny - 1, nz - 1))
+                                neighbour_mesh.append(self.DATAX[neig_flat])
+
+
+                    staggered_mesh = tf.stack(staggered_mesh)
+                    pred_center = self.base_model(tf.expand_dims(self.DATAX[idx], 0), training=True)
+                    pred_stag = self.base_model(staggered_mesh, training=True)
+
+                    lap_target = self.LAPLF[idx]
+                    lap_approx = tf_compute_Laplacian(pred_center, pred_stag, self.select_dimension)
+                    lap_pred_list.append(lap_approx)
+                    lap_true_list.append(lap_target)
+
+            lap_pred_tensor = tf.stack(lap_pred_list)
+            lap_true_tensor = tf.stack(lap_true_list)
+            loss_m = self.loss_m_weight * tf.reduce_mean(tf.square(lap_true_tensor - lap_pred_tensor))
+
             loss = loss_e + loss_m
 
+            #_ regularisation
             reg_loss = tf.add_n(self.base_model.losses) if self.base_model.losses else 0.0
             loss += reg_loss
 
