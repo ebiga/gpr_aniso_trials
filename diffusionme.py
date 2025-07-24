@@ -256,10 +256,12 @@ class LaplacianModel(keras.Model):
 
     def _get_mesh_indices_from_flattened(self, flat_id):
         ny, nz = self.shape_full[1], self.shape_full[2]
-        ix = flat_id // (ny * nz)
-        iy = (flat_id % (ny * nz)) // nz
-        iz = (flat_id % (ny * nz)) % nz
-        return ix, iy, iz
+
+        i_x = tf.math.floordiv(flat_id, ny * nz)
+        i_y = tf.math.floordiv(tf.math.floormod(flat_id, ny * nz), nz)
+        i_z = tf.math.floormod(flat_id, nz)
+
+        return i_x, i_y, i_z
 
     def _get_flat_index(self, x, y, z, shape):
         return x * shape[1] * shape[2] + y * shape[2] + z
