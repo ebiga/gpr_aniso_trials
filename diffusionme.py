@@ -254,18 +254,18 @@ class LaplacianModel(keras.Model):
     def call(self, inputs, training=False):
         return self.base_model(inputs, training=training)
 
-    def _get_coords(self, flat_idx):
+    def _get_mesh_indices_from_flattened(self, flat_id):
         ny, nz = self.shape_full[1], self.shape_full[2]
-        x = flat_idx // (ny * nz)
-        y = (flat_idx % (ny * nz)) // nz
-        z = (flat_idx % (ny * nz)) % nz
-        return x, y, z
+        ix = flat_id // (ny * nz)
+        iy = (flat_id % (ny * nz)) // nz
+        iz = (flat_id % (ny * nz)) % nz
+        return ix, iy, iz
 
     def _get_flat_index(self, x, y, z, shape):
         return x * shape[1] * shape[2] + y * shape[2] + z
 
     def train_step(self, center_indices):
-        ny, nz = self.shape_full[1], self.shape_full[2]
+        nx, ny, nz = self.shape_full[0], self.shape_full[1], self.shape_full[2]
         center_indices = tf.convert_to_tensor(center_indices)
 
         with tf.GradientTape() as tape:
@@ -276,41 +276,49 @@ class LaplacianModel(keras.Model):
             loss_e = tf.reduce_mean(tf.abs(tf.squeeze(pred) - tf.squeeze(y_batch)))
 
             #_ diffusion loss
+            #__ create small meshes of the neighbouring points of the batched node
+            #__ these meshes are required for the diffusion computations
             lap_pred_list = []
             lap_true_list = []
-            for idx in center_indices.numpy():
-                x, y, z = self._get_coords(idx)
 
-                if 1 <= x < self.shape_full[0] - 1 and 1 <= y < ny - 1 and 1 <= z < nz - 1:
+            for _, id in enumerate(center_indices):
+                id_x, id_y, id_z = self._get_mesh_indices_from_flattened(id)
 
-                    # gather local staggered points for Laplacian
+                #-- avoid boundary elements of the reference training mesh for this
+                if (1 <= id_x < nx - 1) and (1 <= id_y < ny - 1) and (1 <= id_z < nz - 1):
+
+                    #--- gather local staggered points for Laplacian
                     staggered_mesh = []
                     for dx in [-1, 0]:
                         for dy in [-1, 0]:
                             for dz in [-1, 0]:
-                                stag_x, stag_y, stag_z = x + dx, y + dy, z + dz
-                                stag_flat = self._get_flat_index(stag_x, stag_y, stag_z,
-                                                                (self.shape_full[0] - 1, ny - 1, nz - 1))
+                                stag_x, stag_y, stag_z = id_x + dx, id_y + dy, id_z + dz
+                                stag_flat = self._get_flat_index(stag_x, stag_y, stag_z, (nx - 1, ny - 1, nz - 1))
                                 staggered_mesh.append(self.STAGX[stag_flat])
 
-                    # gather local neighbouring points for Laplacian
+                    #--- gather local neighbouring points for Laplacian
                     neighbour_mesh = []
                     for dx in [-1, 1]:
                         for dy in [-1, 1]:
                             for dz in [-1, 1]:
-                                neig_x, neig_y, neig_z = x + dx, y + dy, z + dz
-                                neig_flat = self._get_flat_index(neig_x, neig_y, neig_z,
-                                                                (self.shape_full[0] - 1, ny - 1, nz - 1))
+                                neig_x, neig_y, neig_z = id_x + dx, id_y + dy, id_z + dz
+                                neig_flat = self._get_flat_index(neig_x, neig_y, neig_z, (nx - 1, ny - 1, nz - 1))  ###!!!! confirm
                                 neighbour_mesh.append(self.DATAX[neig_flat])
 
-
+                    #--- make predictions of the meshes
                     staggered_mesh = tf.stack(staggered_mesh)
-                    pred_center = self.base_model(tf.expand_dims(self.DATAX[idx], 0), training=True)
-                    pred_stag = self.base_model(staggered_mesh, training=True)
+                    neighbour_mesh = tf.stack(neighbour_mesh)
 
-                    lap_target = self.LAPLF[idx]
-                    lap_approx = tf_compute_Laplacian(pred_center, pred_stag, self.select_dimension)
+                    pred_stag = self.base_model(staggered_mesh, training=True)
+                    pred_neig = self.base_model(neighbour_mesh, training=True)
+
+                    #--- compute the laplacian
+                                                                                                        ###!!!! shapes
+                    lap_approx = tf_compute_Laplacian(pred_neig, pred_stag, self.select_dimension)
                     lap_pred_list.append(lap_approx)
+
+                    #--- store the reference Laplacians for this batch, exact the the batch nodes
+                    lap_target = self.LAPLF[id]
                     lap_true_list.append(lap_target)
 
             lap_pred_tensor = tf.stack(lap_pred_list)
@@ -339,8 +347,8 @@ def generate_center_indices(shape):
     for x in range(1, nx - 1):
         for y in range(1, ny - 1):
             for z in range(1, nz - 1):
-                flat_idx = x * ny * nz + y * nz + z
-                indices.append(flat_idx)
+                flat_id = x * ny * nz + y * nz + z
+                indices.append(flat_id)
     return np.array(indices, dtype=np.int32)
 
 
