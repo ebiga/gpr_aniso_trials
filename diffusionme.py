@@ -103,61 +103,47 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
             return dsf_dD1s + dsf_dD2s
 
 # Tensorflow version - we only use for the staggered computations in the loop
-def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str, staggered=True):
+def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str):
+    def _laplacian_2d(f_orig, f_stag):
+        f_orig = tf.cast(f_orig, tf.float64)
+        f_stag = tf.cast(f_stag, tf.float64)
+        delta = tf.constant(2.0 * 0.5**2, dtype=tf.float64)
 
-    def _laplacian_2d(f_orig, f_stag, staggered=True):
-        f_orig = tf.convert_to_tensor(f_orig, dtype=tf.float64)
-        f_stag = tf.convert_to_tensor(f_stag, dtype=tf.float64)
-        delta = tf.constant(2.0 * 0.5**2 if staggered else 2.0, dtype=tf.float64)
+        d1_num = tf.abs(f_orig[0, 0] + f_orig[1, 1] - f_stag[0, 0] - f_stag[1, 1])
+        d1_den = (f_orig[0, 0] + f_orig[1, 1] + f_stag[0, 0] + f_stag[1, 1]) * (3. * delta)
 
-        if staggered:
-            d1 = tf.abs(f_orig[2:, 2:] + f_orig[:-2, :-2] - f_stag[1:, 1:] - f_stag[:-1, :-1])
-            d1 /= (f_orig[2:, 2:] + f_orig[:-2, :-2] + f_stag[1:, 1:] + f_stag[:-1, :-1]) * (3. * delta)
+        d2_num = tf.abs(f_orig[0, 1] + f_orig[1, 0] - f_stag[0, 1] - f_stag[1, 0])
+        d2_den = (f_orig[0, 1] + f_orig[1, 0] + f_stag[0, 1] + f_stag[1, 0]) * (3. * delta)
 
-            d2 = tf.abs(f_orig[:-2, 2:] + f_orig[2:, :-2] - f_stag[:-1, 1:] - f_stag[1:, :-1])
-            d2 /= (f_orig[:-2, 2:] + f_orig[2:, :-2] + f_stag[:-1, 1:] + f_stag[1:, :-1]) * (3. * delta)
-        else:
-            center = f_orig[1:-1, 1:-1]
-            d1 = tf.abs(f_orig[2:, 2:] + f_orig[:-2, :-2] - 2. * center)
-            d1 /= (f_orig[2:, 2:] + f_orig[:-2, :-2] + 2. * center) * delta
+        return d1_num / d1_den + d2_num / d2_den
 
-            d2 = tf.abs(f_orig[:-2, 2:] + f_orig[2:, :-2] - 2. * center)
-            d2 /= (f_orig[:-2, 2:] + f_orig[2:, :-2] + 2. * center) * delta
+    def _laplacian_3d(f_orig, f_stag):
+        f_orig = tf.cast(f_orig, tf.float64)
+        f_stag = tf.cast(f_stag, tf.float64)
+        delta = tf.constant(2.0 * 0.5**2, dtype=tf.float64)
 
-        return d1 + d2
+        # Each pair is a space diagonal of the 2x2x2 cube
+        diagonals = [
+            ((0, 0, 0), (1, 1, 1)),
+            ((0, 1, 0), (1, 0, 1)),
+            ((0, 0, 1), (1, 1, 0)),
+            ((0, 1, 1), (1, 0, 0)),
+        ]
 
+        total = 0.0
+        for (a, b) in diagonals:
+            o1, o2 = f_orig[a[0], a[1], a[2]], f_orig[b[0], b[1], b[2]]
+            s1, s2 = f_stag[a[0], a[1], a[2]], f_stag[b[0], b[1], b[2]]
+            num = tf.abs(o1 + o2 - s1 - s2)
+            den = (o1 + o2 + s1 + s2) * (3. * delta)
+            total += num / den
 
-    def _laplacian_3d(f_orig, f_stag, staggered=True):
-        f_orig = tf.convert_to_tensor(f_orig, dtype=tf.float64)
-        f_stag = tf.convert_to_tensor(f_stag, dtype=tf.float64)
-        delta = tf.constant(2.0 * 0.5**2 if staggered else 2.0, dtype=tf.float64)
-
-        if staggered:
-            d1 = tf.abs(f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] - f_stag[1:, 1:, 1:] - f_stag[:-1, :-1, :-1])
-            d1 /= (f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] + f_stag[1:, 1:, 1:] + f_stag[:-1, :-1, :-1]) * (3. * delta)
-
-            d2 = tf.abs(f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] - f_stag[:-1, 1:, 1:] - f_stag[1:, :-1, :-1])
-            d2 /= (f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] + f_stag[:-1, 1:, 1:] + f_stag[1:, :-1, :-1]) * (3. * delta)
-
-            d3 = tf.abs(f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] - f_stag[1:, :-1, 1:] - f_stag[:-1, 1:, :-1])
-            d3 /= (f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] + f_stag[1:, :-1, 1:] + f_stag[:-1, 1:, :-1]) * (3. * delta)
-        else:
-            center = f_orig[1:-1, 1:-1, 1:-1]
-            d1 = tf.abs(f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] - 2. * center)
-            d1 /= (f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] + 2. * center) * delta
-
-            d2 = tf.abs(f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] - 2. * center)
-            d2 /= (f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] + 2. * center) * delta
-
-            d3 = tf.abs(f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] - 2. * center)
-            d3 /= (f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] + 2. * center) * delta
-
-        return d1 + d2 + d3
+        return total
 
     if select_dimension == "3D":
-        return _laplacian_3d(f_orig, f_stag, staggered)
+        return _laplacian_3d(f_orig, f_stag)
     else:
-        return _laplacian_2d(f_orig, f_stag, staggered)
+        return _laplacian_2d(f_orig, f_stag)
 
 
 
