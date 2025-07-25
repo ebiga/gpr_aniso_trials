@@ -293,7 +293,7 @@ class LaplacianModel(keras.Model):
 
             #--- over to the Laplacians
             lap_pred = tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
-            lap_true = self.LAPLF[id_n]
+            lap_true = self.LAPLF[id_x - 1, id_y - 1, id_z - 1]
 
             return lap_pred, lap_true
 
@@ -351,8 +351,6 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
     center_indices = generate_center_indices(shape_train_mesh)
-
-    LAPLF = LAPLF.flatten()
 
     # give the base model to the Laplacian model
     model = LaplacianModel(
