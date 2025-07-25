@@ -241,16 +241,18 @@ class LaplacianModel(keras.Model):
         return self.base_model(inputs, training=training)
 
     def _get_mesh_indices_from_flattened(self, flat_id):
-        ny, nz = self.shape_full[1], self.shape_full[2]
+        nx, ny, nz = self.shape_full
 
-        i_x = tf.math.floordiv(flat_id, ny * nz)
-        i_y = tf.math.floordiv(tf.math.floormod(flat_id, ny * nz), nz)
-        i_z = tf.math.floormod(flat_id, nz)
+        i_z = tf.math.floordiv(flat_id, nx * ny)
+        rem = tf.math.floormod(flat_id, nx * ny)
+        i_y = tf.math.floordiv(rem, nx)
+        i_x = tf.math.floormod(rem, nx)
 
         return i_x, i_y, i_z
 
     def _get_flat_index(self, x, y, z, shape):
-        return x * shape[1] * shape[2] + y * shape[2] + z
+        nx, ny, nz = shape
+        return z * nx * ny + y * nx + x
 
     #@tf.function  # optional for aggressive graph execution
     def compute_local_laplacian(self, id_n):
