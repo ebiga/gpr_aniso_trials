@@ -250,9 +250,12 @@ class LaplacianModel(keras.Model):
 
         return i_x, i_y, i_z
 
-    def _get_flat_index(self, x, y, z, shape):
+    def _get_flat_index_reversed(self, x, y, z, shape): # for DATAX and csv shiz
         nx, ny, nz = shape
         return z * nx * ny + y * nx + x
+    def _get_flat_index(self, x, y, z, shape): # for normal crap
+        nx, ny, nz = shape
+        return x * ny * nz + y * nz + z
 
     #@tf.function  # optional for aggressive graph execution
     def compute_local_laplacian(self, id_n):
@@ -268,7 +271,7 @@ class LaplacianModel(keras.Model):
 
         def inner():
             #--- gather the neighbouring training nodes
-            local_neig = [self.DATAX[self._get_flat_index(id_x + dx, id_y + dy, id_z + dz, (nx, ny, nz))]
+            local_neig = [self.DATAX[self._get_flat_index_reversed(id_x + dx, id_y + dy, id_z + dz, (nx, ny, nz))]
                 for dx in [-1, 1] for dy in [-1, 1] for dz in [-1, 1]]
             predf = self.base_model(tf.stack(local_neig), training=True)
             predf_mesh = tf.reshape(predf, [2, 2, 2])
