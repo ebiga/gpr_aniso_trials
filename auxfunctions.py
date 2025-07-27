@@ -226,7 +226,7 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
 def build_nn_trunk(input_tensor, nn_layers):
     x = input_tensor
     for nn in nn_layers:
-        x = layers.Dense(nn, activation=LeakyELU(beta=0.4), kernel_initializer='he_normal')(x)
+        x = layers.Dense(nn, activation=LeakyELU(beta=0.4), kernel_initializer=keras.initializers.GlorotUniform(seed=None))(x)
     return layers.Dense(1)(x)
 
 
