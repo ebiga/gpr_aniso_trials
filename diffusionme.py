@@ -104,23 +104,12 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
 
 # Tensorflow version - we only use for the staggered computations in the loop
 def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str):
-    def _laplacian_2d(f_orig, f_stag):
-        f_orig = tf.cast(f_orig, tf.float64)
-        f_stag = tf.cast(f_stag, tf.float64)
-        delta = tf.constant(2.0 * 0.5**2, dtype=tf.float64)
 
-        d1_num = tf.abs(f_orig[0, 0] + f_orig[1, 1] - f_stag[0, 0] - f_stag[1, 1])
-        d1_den = (f_orig[0, 0] + f_orig[1, 1] + f_stag[0, 0] + f_stag[1, 1]) * (3. * delta)
+    #_ We compute the Laplacian with a 5-point stencil
+    grid_spacing = tf.constant(0.5, dtype=tf.float64)
 
-        d2_num = tf.abs(f_orig[0, 1] + f_orig[1, 0] - f_stag[0, 1] - f_stag[1, 0])
-        d2_den = (f_orig[0, 1] + f_orig[1, 0] + f_stag[0, 1] + f_stag[1, 0]) * (3. * delta)
-
-        return d1_num / d1_den + d2_num / d2_den
-
-    def _laplacian_3d(f_orig, f_stag):
-        f_orig = tf.cast(f_orig, tf.float64)
-        f_stag = tf.cast(f_stag, tf.float64)
-        delta = tf.constant(2.0 * 0.5**2, dtype=tf.float64)
+    if select_dimension == "3D":
+        delta = 3. * tf.square(grid_spacing)
 
         # Each pair is a space diagonal of the 2x2x2 cube
         diagonals = [
@@ -134,16 +123,21 @@ def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str):
         for (a, b) in diagonals:
             o1, o2 = f_orig[a[0], a[1], a[2]], f_orig[b[0], b[1], b[2]]
             s1, s2 = f_stag[a[0], a[1], a[2]], f_stag[b[0], b[1], b[2]]
-            num = tf.abs(o1 + o2 - s1 - s2)
-            den = (o1 + o2 + s1 + s2) * (3. * delta)
-            total += num / den
 
-        return total
+            total += tf.abs(o1 + o2 - s1 - s2) / (o1 + o2 + s1 + s2)
 
-    if select_dimension == "3D":
-        return _laplacian_3d(f_orig, f_stag)
+        return total / (3. * delta)
+
     else:
-        return _laplacian_2d(f_orig, f_stag)
+        delta = 2. * tf.square(grid_spacing)
+
+        d1 = tf.abs(f_orig[0, 0] + f_orig[1, 1] - f_stag[0, 0] - f_stag[1, 1]) \
+                 / (f_orig[0, 0] + f_orig[1, 1] + f_stag[0, 0] + f_stag[1, 1])
+
+        d2 = tf.abs(f_orig[0, 1] + f_orig[1, 0] - f_stag[0, 1] - f_stag[1, 0]) \
+                 / (f_orig[0, 1] + f_orig[1, 0] + f_stag[0, 1] + f_stag[1, 0])
+
+        return (d1 + d2) / (3. * delta)
 
 
 
