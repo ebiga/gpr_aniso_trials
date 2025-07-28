@@ -234,6 +234,7 @@ class LaplacianModel(keras.Model):
     def call(self, inputs, training=False):
         return self.base_model(inputs, training=training)
 
+    # Funcions necessary to relate local meshes in flattened and mesh shapes
     def _get_mesh_indices_from_flattened(self, flat_id):
         nx, ny, nz = self.shape_full
 
@@ -243,7 +244,6 @@ class LaplacianModel(keras.Model):
         i_x = tf.math.floormod(rem, nx)
 
         return i_x, i_y, i_z
-
     def _get_flat_index_reversed(self, x, y, z, shape): # for DATAX and csv shiz
         nx, ny, nz = shape
         return z * nx * ny + y * nx + x
@@ -251,7 +251,7 @@ class LaplacianModel(keras.Model):
         nx, ny, nz = shape
         return x * ny * nz + y * nz + z
 
-    #@tf.function  # optional for aggressive graph execution
+    # This is our wrapper for a tf-based laplacian on local meshes around mini-batch points
     def compute_local_laplacian(self, id_n):
         nx, ny, nz = self.shape_full
         id_x, id_y, id_z = self._get_mesh_indices_from_flattened(id_n)
@@ -287,6 +287,7 @@ class LaplacianModel(keras.Model):
 
         return tf.cond(cond, inner, zeros)
 
+    # Our special train_step implementation that calls the diffusion operator
     def train_step(self, center_indices):
         center_indices = tf.convert_to_tensor(center_indices, dtype=tf.int32)
 
