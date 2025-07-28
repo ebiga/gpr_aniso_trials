@@ -310,8 +310,12 @@ class LaplacianModel(keras.Model):
 
         grads = tape.gradient(loss, self.base_model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.base_model.trainable_variables))
+
         self.loss_tracker.update_state(loss)
-        return {"loss": self.loss_tracker.result(), "mae": loss_e, "diff": loss_m}
+        for metric in self.metrics:
+            metric.update_state(y_batch, pred)
+
+        return {"loss": self.loss_tracker.result(), **{m.name: m.result() for m in self.metrics}}
 
     @property
     def metrics(self):
