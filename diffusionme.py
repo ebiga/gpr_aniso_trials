@@ -323,24 +323,13 @@ class LaplacianModel(keras.Model):
         return [self.loss_tracker]
 
 
-def generate_center_indices(shape):
-    nx, ny, nz = shape
-    indices = []
-    for x in range(1, nx - 1):
-        for y in range(1, ny - 1):
-            for z in range(1, nz - 1):
-                flat_id = x * ny * nz + y * nz + z
-                indices.append(flat_id)
-    return np.array(indices, dtype=np.int32)
-
-
 def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
                         shape_train_mesh, select_dimension,
                         trained_model_file, histories, casesetup, flightlog):
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
-    center_indices = generate_center_indices(shape_train_mesh)
+    center_indices = center_indices = np.arange(np.prod(shape_train_mesh), dtype=np.int32)
 
     # give the base model to the Laplacian model
     model = LaplacianModel(
