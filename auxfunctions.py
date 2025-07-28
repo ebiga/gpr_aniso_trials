@@ -70,15 +70,17 @@ def generate_kernel_info(model):
 
 
 ## Reshape due to csv XY and my lovely IJ orders
-def reshape_flatarray_like_reference_meshgrid(offending_array, ashape, select_dimension):
+def reshape_flatarray_like_reference_meshgrid(offending_array, dashape, select_dimension):
     # the csv comes in the reversed order of the IJ mesh grid
     # the flattened array is reshaped into its mesh shape than tranposed to the IJ shape
+    ashape = dashape[::-1]
     if select_dimension == '3D':
         return offending_array.reshape(ashape).transpose(2, 1, 0)
     elif select_dimension == '2D':
         return offending_array.reshape(ashape).transpose()
 
-def tf_reshape_flatarray_like_reference_meshgrid(array, ashape, select_dimension):
+def tf_reshape_flatarray_like_reference_meshgrid(array, dashape, select_dimension):
+    ashape = dashape[::-1]
     if select_dimension == '3D':
         reshaped = tf.reshape(array, ashape)
         return tf.transpose(reshaped, perm=[2, 1, 0])
@@ -224,7 +226,7 @@ def update_kernel_params(model, new_lengthscale, new_variance=None):
 def build_nn_trunk(input_tensor, nn_layers):
     x = input_tensor
     for nn in nn_layers:
-        x = layers.Dense(nn, activation=LeakyELU(beta=0.4), kernel_initializer='he_normal')(x)
+        x = layers.Dense(nn, activation=LeakyELU(beta=0.4), kernel_initializer=keras.initializers.GlorotUniform(seed=None))(x)
     return layers.Dense(1)(x)
 
 
