@@ -329,7 +329,7 @@ def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
-    center_indices = center_indices = np.arange(np.prod(shape_train_mesh), dtype=np.int32)
+    center_indices = np.arange(np.prod(shape_train_mesh), dtype=np.int32)
 
     # give the base model to the Laplacian model
     model = LaplacianModel(
