@@ -279,13 +279,10 @@ class LaplacianModel(keras.Model):
             predf_staggeredmesh = tf.reshape(predf_staggered, [2, 2, 2])
 
             #--- over to the Laplacians
-            lap_pred = tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
-            lap_true = self.LAPLF[id_x - 1, id_y - 1, id_z - 1]
-
-            return lap_pred, lap_true
+            return self.LAPLF[id_x - 1, id_y - 1, id_z - 1] - tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
 
         def zeros():
-            return tf.constant(0.0, dtype=tf.float64), tf.constant(0.0, dtype=tf.float64)
+            return tf.constant(0.0, dtype=tf.float64)
 
         return tf.cond(cond, inner, zeros)
 
@@ -301,8 +298,8 @@ class LaplacianModel(keras.Model):
             loss_e = tf.reduce_mean(tf.abs(tf.squeeze(pred) - tf.squeeze(y_batch)))
 
             #_ diffusion loss
-            lap_pred_tensor, lap_true_tensor = tf.map_fn(self.compute_local_laplacian, center_indices, dtype=(tf.float64, tf.float64))
-            loss_m = self.loss_m_weight * tf.reduce_mean(tf.square(lap_true_tensor - lap_pred_tensor))
+            delta_laplacian_tensor = tf.map_fn(self.compute_local_laplacian, center_indices, dtype=tf.float64)
+            loss_m = self.loss_m_weight * tf.reduce_mean(tf.square(delta_laplacian_tensor))
 
             #_ assemble total loss
             loss = loss_e + loss_m
