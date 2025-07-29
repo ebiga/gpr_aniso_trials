@@ -390,6 +390,6 @@ class FixedStepLossMWeight(tf.keras.callbacks.Callback):
         step_count = epoch // self.step_every
         new_weight = min(step_count * self.step_size, self.max_weight)
         if new_weight != self.prev_weight:
-            print(f"Epoch {epoch+1}: loss_m_weight = {new_weight:.2e}")
+            print(f"Epoch {epoch+1}: loss_m_weight = {new_weight:.2e}; at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
             self.prev_weight = new_weight
         self.model_ref.loss_m_weight.assign(new_weight)
