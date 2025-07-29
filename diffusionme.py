@@ -252,6 +252,8 @@ class LaplacianModel(keras.Model):
         return x * ny * nz + y * nz + z
 
     # This is our wrapper for a tf-based laplacian on local meshes around mini-batch points
+    # Each central node will have 8 neighbours from the 3 diagonals (in 3-D). We only take these points and not
+    # the whole cube to be as fast as possible, which is quite cool in this approach.
     def compute_local_laplacian(self, id_n):
         nx, ny, nz = self.shape_full
         id_x, id_y, id_z = self._get_mesh_indices_from_flattened(id_n)
