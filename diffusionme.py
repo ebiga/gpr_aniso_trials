@@ -266,16 +266,20 @@ class LaplacianModel(keras.Model):
         ])
 
         def inner():
-            #--- gather the neighbouring training nodes
+            #--- gather the neighbouring nodes, training and staggered
             local_neig = [self.DATAX[self._get_flat_index_reversed(id_x + dx, id_y + dy, id_z + dz, (nx, ny, nz))]
                 for dx in [-1, 1] for dy in [-1, 1] for dz in [-1, 1]]
-            predf = self.base_model(tf.stack(local_neig), training=True)
-            predf_mesh = tf.reshape(predf, [2, 2, 2])
-
-            #--- gather local staggered points
             local_stag = [self.STAGX[self._get_flat_index(id_x + dx, id_y + dy, id_z + dz, (nx - 1, ny - 1, nz - 1))]
                 for dx in [-1, 0] for dy in [-1, 0] for dz in [-1, 0]]
-            predf_staggered = self.base_model(tf.stack(local_stag), training=True)
+
+            #--- predict the concatenated array for speeds
+            conct = tf.concat([local_neig, local_stag], axis=0)
+            preds = self.base_model(conct, training=True)
+
+            #--- split and reshape for the Laplacian operator
+            predf, predf_staggered = tf.split(preds, 2, axis=0)
+
+            predf_mesh = tf.reshape(predf, [2, 2, 2])
             predf_staggeredmesh = tf.reshape(predf_staggered, [2, 2, 2])
 
             #--- over to the Laplacians
