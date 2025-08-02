@@ -149,7 +149,8 @@ def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, case
         callbacks_list.append(reduce_lr)
 
     if if_nn_tuning:
-        tuner_dir = os.path.join("tuner_logs", flightlog if flightlog else "default_run")
+        flightlog_dir = os.path.dirname(flightlog.name)
+        tuner_dir = os.path.join(flightlog_dir, "tuner_logs")
 
         # we build a generic model here
         input_shape = DATAX.shape[1:]
