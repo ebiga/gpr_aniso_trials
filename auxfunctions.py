@@ -234,10 +234,10 @@ def make_build_model(input_shape):
     def build_nn_trunk_tuner(hp):
         x = tf.keras.Input(shape=input_shape)
 
-        nn_layers = hp.Int('num_layers', min_value=4, max_value=8)
+        nn_layers = hp.Int('num_layers', min_value=5, max_value=9)
 
         for i in range(nn_layers):
-            units = hp.Int(f"units_{i}", min_value=60, max_value=600, step=60)
+            units = hp.Int(f"units_{i}", min_value=60, max_value=480, step=60)
             x = layers.Dense(units, kernel_initializer='he_normal')(x)
             x = LeakyELU()(x)
 
