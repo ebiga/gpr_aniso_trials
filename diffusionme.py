@@ -52,26 +52,26 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
         if select_dimension == '3D':
             delta = 3. * grid_spacing**2.
 
-            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - f_stag[1:  ,1:  ,1:  ] - f_stag[ :-1, :-1, :-1]) \
-                           / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + f_stag[1:  ,1:  ,1:  ] + f_stag[ :-1, :-1, :-1]) / (3.*delta)
-            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - f_stag[ :-1,1:  ,1:  ] - f_stag[1:  , :-1, :-1]) \
-                           / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + f_stag[ :-1,1:  ,1:  ] + f_stag[1:  , :-1, :-1]) / (3.*delta)
-            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - f_stag[1:  , :-1,1:  ] - f_stag[ :-1,1:  , :-1]) \
-                           / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + f_stag[1:  , :-1,1:  ] + f_stag[ :-1,1:  , :-1]) / (3.*delta)
-            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - f_stag[1:  ,1:  , :-1] - f_stag[ :-1, :-1,1:  ]) \
-                           / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + f_stag[1:  ,1:  , :-1] + f_stag[ :-1, :-1,1:  ]) / (3.*delta)
+            dsf_dDs = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - f_stag[1:  ,1:  ,1:  ] - f_stag[ :-1, :-1, :-1]) \
+                          / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + f_stag[1:  ,1:  ,1:  ] + f_stag[ :-1, :-1, :-1]) \
+                    + np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - f_stag[ :-1,1:  ,1:  ] - f_stag[1:  , :-1, :-1]) \
+                          / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + f_stag[ :-1,1:  ,1:  ] + f_stag[1:  , :-1, :-1]) \
+                    + np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - f_stag[1:  , :-1,1:  ] - f_stag[ :-1,1:  , :-1]) \
+                          / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + f_stag[1:  , :-1,1:  ] + f_stag[ :-1,1:  , :-1]) \
+                    + np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - f_stag[1:  ,1:  , :-1] - f_stag[ :-1, :-1,1:  ]) \
+                          / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + f_stag[1:  ,1:  , :-1] + f_stag[ :-1, :-1,1:  ])
 
-            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
+            return dsf_dDs / (3.*delta)
 
         else:
             delta = 2. * grid_spacing**2.
 
-            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - f_stag[1:  ,1:] - f_stag[ :-1,:-1]) \
-                           / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + f_stag[1:  ,1:] + f_stag[ :-1,:-1]) / (3.*delta)
-            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - f_stag[ :-1,1:] - f_stag[1:  ,:-1]) \
-                           / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + f_stag[ :-1,1:] + f_stag[1:  ,:-1]) / (3.*delta)
+            dsf_dDs = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - f_stag[1:  ,1:] - f_stag[ :-1,:-1]) \
+                          / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + f_stag[1:  ,1:] + f_stag[ :-1,:-1]) \
+                    + np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - f_stag[ :-1,1:] - f_stag[1:  ,:-1]) \
+                          / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + f_stag[ :-1,1:] + f_stag[1:  ,:-1])
 
-            return dsf_dD1s + dsf_dD2s
+            return dsf_dDs / (3.*delta)
 
     else:
         # This is the original training mesh processing, fstag = f_orig
@@ -81,83 +81,63 @@ def compute_Laplacian(f_orig, f_stag, select_dimension):
         if select_dimension == '3D':
             delta = 3. * grid_spacing**2.
 
-            dsf_dD1s = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD2s = np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD3s = np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
-            dsf_dD4s = np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - 2. * f_orig[1:-1,1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + 2. * f_orig[1:-1,1:-1,1:-1]) / delta
+            dsf_dDs = np.abs(f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
+                          / (f_orig[2:  ,2:  ,2:  ] + f_orig[ :-2, :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) \
+                    + np.abs(f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
+                          / (f_orig[ :-2,2:  ,2:  ] + f_orig[2:  , :-2, :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) \
+                    + np.abs(f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] - 2. * f_orig[1:-1,1:-1,1:-1]) \
+                          / (f_orig[2:  , :-2,2:  ] + f_orig[ :-2,2:  , :-2] + 2. * f_orig[1:-1,1:-1,1:-1]) \
+                    + np.abs(f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] - 2. * f_orig[1:-1,1:-1,1:-1]) \
+                          / (f_orig[2:  ,2:  , :-2] + f_orig[ :-2, :-2,2:  ] + 2. * f_orig[1:-1,1:-1,1:-1])
 
-            return dsf_dD1s + dsf_dD2s + dsf_dD3s + dsf_dD4s
+            return dsf_dDs / delta
 
         else:
             delta = 2. * grid_spacing**2.
 
-            dsf_dD1s = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - 2. * f_orig[1:-1,1:-1]) \
-                           / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
-            dsf_dD2s = np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - 2. * f_orig[1:-1,1:-1]) \
-                           / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + 2. * f_orig[1:-1,1:-1]) / delta
+            dsf_dDs = np.abs(f_orig[2:  ,2:] + f_orig[ :-2,:-2] - 2. * f_orig[1:-1,1:-1]) \
+                          / (f_orig[2:  ,2:] + f_orig[ :-2,:-2] + 2. * f_orig[1:-1,1:-1]) \
+                    + np.abs(f_orig[ :-2,2:] + f_orig[2:  ,:-2] - 2. * f_orig[1:-1,1:-1]) \
+                          / (f_orig[ :-2,2:] + f_orig[2:  ,:-2] + 2. * f_orig[1:-1,1:-1])
 
-            return dsf_dD1s + dsf_dD2s
+            return dsf_dDs / delta
 
 # Tensorflow version - we only use for the staggered computations in the loop
-def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str, staggered=True):
+def tf_compute_Laplacian(f_orig, f_stag, select_dimension: str):
 
-    def _laplacian_2d(f_orig, f_stag, staggered=True):
-        f_orig = tf.convert_to_tensor(f_orig, dtype=tf.float64)
-        f_stag = tf.convert_to_tensor(f_stag, dtype=tf.float64)
-        delta = tf.constant(2.0 * 0.5**2 if staggered else 2.0, dtype=tf.float64)
-
-        if staggered:
-            d1 = tf.abs(f_orig[2:, 2:] + f_orig[:-2, :-2] - f_stag[1:, 1:] - f_stag[:-1, :-1])
-            d1 /= (f_orig[2:, 2:] + f_orig[:-2, :-2] + f_stag[1:, 1:] + f_stag[:-1, :-1]) * (3. * delta)
-
-            d2 = tf.abs(f_orig[:-2, 2:] + f_orig[2:, :-2] - f_stag[:-1, 1:] - f_stag[1:, :-1])
-            d2 /= (f_orig[:-2, 2:] + f_orig[2:, :-2] + f_stag[:-1, 1:] + f_stag[1:, :-1]) * (3. * delta)
-        else:
-            center = f_orig[1:-1, 1:-1]
-            d1 = tf.abs(f_orig[2:, 2:] + f_orig[:-2, :-2] - 2. * center)
-            d1 /= (f_orig[2:, 2:] + f_orig[:-2, :-2] + 2. * center) * delta
-
-            d2 = tf.abs(f_orig[:-2, 2:] + f_orig[2:, :-2] - 2. * center)
-            d2 /= (f_orig[:-2, 2:] + f_orig[2:, :-2] + 2. * center) * delta
-
-        return d1 + d2
-
-
-    def _laplacian_3d(f_orig, f_stag, staggered=True):
-        f_orig = tf.convert_to_tensor(f_orig, dtype=tf.float64)
-        f_stag = tf.convert_to_tensor(f_stag, dtype=tf.float64)
-        delta = tf.constant(2.0 * 0.5**2 if staggered else 2.0, dtype=tf.float64)
-
-        if staggered:
-            d1 = tf.abs(f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] - f_stag[1:, 1:, 1:] - f_stag[:-1, :-1, :-1])
-            d1 /= (f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] + f_stag[1:, 1:, 1:] + f_stag[:-1, :-1, :-1]) * (3. * delta)
-
-            d2 = tf.abs(f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] - f_stag[:-1, 1:, 1:] - f_stag[1:, :-1, :-1])
-            d2 /= (f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] + f_stag[:-1, 1:, 1:] + f_stag[1:, :-1, :-1]) * (3. * delta)
-
-            d3 = tf.abs(f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] - f_stag[1:, :-1, 1:] - f_stag[:-1, 1:, :-1])
-            d3 /= (f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] + f_stag[1:, :-1, 1:] + f_stag[:-1, 1:, :-1]) * (3. * delta)
-        else:
-            center = f_orig[1:-1, 1:-1, 1:-1]
-            d1 = tf.abs(f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] - 2. * center)
-            d1 /= (f_orig[2:, 2:, 2:] + f_orig[:-2, :-2, :-2] + 2. * center) * delta
-
-            d2 = tf.abs(f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] - 2. * center)
-            d2 /= (f_orig[:-2, 2:, 2:] + f_orig[2:, :-2, :-2] + 2. * center) * delta
-
-            d3 = tf.abs(f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] - 2. * center)
-            d3 /= (f_orig[2:, :-2, 2:] + f_orig[:-2, 2:, :-2] + 2. * center) * delta
-
-        return d1 + d2 + d3
+    #_ We compute the Laplacian with a 5-point stencil
+    grid_spacing = tf.constant(0.5, dtype=tf.float64)
 
     if select_dimension == "3D":
-        return _laplacian_3d(f_orig, f_stag, staggered)
+        delta = 3. * tf.square(grid_spacing)
+
+        # Each pair is a space diagonal of the 2x2x2 cube
+        diagonals = [
+            ((0, 0, 0), (1, 1, 1)),
+            ((0, 1, 0), (1, 0, 1)),
+            ((0, 0, 1), (1, 1, 0)),
+            ((0, 1, 1), (1, 0, 0)),
+        ]
+
+        total = 0.0
+        for (a, b) in diagonals:
+            o1, o2 = f_orig[a[0], a[1], a[2]], f_orig[b[0], b[1], b[2]]
+            s1, s2 = f_stag[a[0], a[1], a[2]], f_stag[b[0], b[1], b[2]]
+
+            total += tf.abs(o1 + o2 - s1 - s2) / (o1 + o2 + s1 + s2)
+
+        return total / (3. * delta)
+
     else:
-        return _laplacian_2d(f_orig, f_stag, staggered)
+        delta = 2. * tf.square(grid_spacing)
+
+        d1 = tf.abs(f_orig[0, 0] + f_orig[1, 1] - f_stag[0, 0] - f_stag[1, 1]) \
+                 / (f_orig[0, 0] + f_orig[1, 1] + f_stag[0, 0] + f_stag[1, 1])
+
+        d2 = tf.abs(f_orig[0, 1] + f_orig[1, 0] - f_stag[0, 1] - f_stag[1, 0]) \
+                 / (f_orig[0, 1] + f_orig[1, 0] + f_stag[0, 1] + f_stag[1, 0])
+
+        return (d1 + d2) / (3. * delta)
 
 
 
@@ -232,16 +212,15 @@ def GPR_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
 
 ## CLASS: define a Laplace diffusion loss for a NN model
 class LaplacianModel(keras.Model):
-    def __init__(self, base_model, DATAX, STAGX, LAPLF, shape_train_mesh, shape_stagg_mesh, select_dimension):
+    def __init__(self, base_model, DATAX, DATAF, STAGX, LAPLF, shape_full, select_dimension):
         super().__init__()
         self.base_model = base_model
-
-        self.DATAX = DATAX
-        self.STAGX = STAGX
+        self.DATAX = tf.convert_to_tensor(DATAX)
+        self.DATAF = tf.convert_to_tensor(DATAF)
+        self.STAGX = tf.convert_to_tensor(STAGX)
         self.LAPLF = tf.convert_to_tensor(LAPLF)
 
-        self.shape_train_mesh = shape_train_mesh
-        self.shape_stagg_mesh = shape_stagg_mesh
+        self.shape_full = shape_full
         self.select_dimension = select_dimension
 
         self.loss_tracker = keras.metrics.Mean(name="loss")
@@ -255,74 +234,141 @@ class LaplacianModel(keras.Model):
     def call(self, inputs, training=False):
         return self.base_model(inputs, training=training)
 
-    def train_step(self, data):
+    # Funcions necessary to relate local meshes in flattened and mesh shapes
+    def _get_mesh_indices_from_flattened(self, flat_id):
+        nx, ny, nz = self.shape_full
+
+        i_z = tf.math.floordiv(flat_id, nx * ny)
+        rem = tf.math.floormod(flat_id, nx * ny)
+        i_y = tf.math.floordiv(rem, nx)
+        i_x = tf.math.floormod(rem, nx)
+
+        return i_x, i_y, i_z
+    def _get_flat_index_reversed(self, x, y, z, shape): # for DATAX and csv shiz
+        nx, ny, nz = shape
+        return z * nx * ny + y * nx + x
+    def _get_flat_index(self, x, y, z, shape): # for normal crap
+        nx, ny, nz = shape
+        return x * ny * nz + y * nz + z
+
+    # This is our wrapper for a tf-based laplacian on local meshes around mini-batch points
+    # Each central node will have 8 neighbours from the 3 diagonals (in 3-D). We only take these points and not
+    # the whole cube to be as fast as possible, which is quite cool in this approach.
+    def compute_local_laplacian(self, id_n):
+        nx, ny, nz = self.shape_full
+        id_x, id_y, id_z = self._get_mesh_indices_from_flattened(id_n)
+
+        #-- avoid boundary elements of the reference training mesh for this
+        cond = tf.reduce_all([
+            id_x >= 1, id_x < nx - 1,
+            id_y >= 1, id_y < ny - 1,
+            id_z >= 1, id_z < nz - 1
+        ])
+
+        def inner():
+            #--- gather the neighbouring nodes, training and staggered
+            local_neig = [self.DATAX[self._get_flat_index_reversed(id_x + dx, id_y + dy, id_z + dz, (nx, ny, nz))]
+                for dx in [-1, 1] for dy in [-1, 1] for dz in [-1, 1]]
+            local_stag = [self.STAGX[self._get_flat_index(id_x + dx, id_y + dy, id_z + dz, (nx - 1, ny - 1, nz - 1))]
+                for dx in [-1, 0] for dy in [-1, 0] for dz in [-1, 0]]
+
+            #--- predict the concatenated array for speeds
+            conct = tf.concat([local_neig, local_stag], axis=0)
+            preds = self.base_model(conct, training=True)
+
+            #--- split and reshape for the Laplacian operator
+            predf, predf_staggered = tf.split(preds, 2, axis=0)
+
+            predf_mesh = tf.reshape(predf, [2, 2, 2])
+            predf_staggeredmesh = tf.reshape(predf_staggered, [2, 2, 2])
+
+            #--- over to the Laplacians
+            return self.LAPLF[id_x - 1, id_y - 1, id_z - 1] - tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension), tf.constant(True)
+
+        def zeros():
+            return tf.constant(0.0, dtype=tf.float64), tf.constant(False)
+
+        return tf.cond(cond, inner, zeros)
+
+    # Our special train_step implementation that calls the diffusion operator
+    def train_step(self, center_indices):
+        center_indices = tf.convert_to_tensor(center_indices, dtype=tf.int32)
+
         with tf.GradientTape() as tape:
-            x_batch, y_batch = data
+            #_ mean absolute error
+            x_batch = tf.gather(self.DATAX, center_indices)
+            y_batch = tf.gather(self.DATAF, center_indices)
+            pred = self.base_model(x_batch, training=True)
+            loss_e = tf.reduce_mean(tf.abs(tf.squeeze(pred) - tf.squeeze(y_batch)))
 
-            #_ Training loss
-            y_pred_batch = self.base_model(x_batch, training=True)
-            loss_e = tf.reduce_mean(tf.abs(y_batch - tf.squeeze(y_pred_batch)))
+            #_ diffusion loss
+            delta_laplacian_tensor, boundary_flag = tf.map_fn(self.compute_local_laplacian, center_indices, dtype=(tf.float64, tf.bool))
 
-            #_ Diffusion loss
-            #__ this is performed in the whole mesh cause the differentiation
-            predf = self.base_model(self.DATAX, training=True)
-            predf_staggered = self.base_model(self.STAGX, training=True)
+            masked_loss = tf.boolean_mask(tf.square(delta_laplacian_tensor), boundary_flag == True)
+            loss_m = self.loss_m_weight * tf.reduce_mean(masked_loss)
 
-            predf_mesh = tf_reshape_flatarray_like_reference_meshgrid(predf, self.shape_train_mesh, self.select_dimension)
-            predf_staggeredmesh = tf.reshape(predf_staggered, self.shape_stagg_mesh)
+            #_ assemble total loss
+            loss = loss_e + loss_m
 
-            laplacian_pred = tf_compute_Laplacian(predf_mesh, predf_staggeredmesh, self.select_dimension)
-
-            loss_m = self.loss_m_weight * tf.reduce_mean(tf.square(self.LAPLF - laplacian_pred))
-
-            #_ Regularization
+            #_ regularisation
             reg_loss = tf.add_n(self.base_model.losses) if self.base_model.losses else 0.0
-
-            #_ Assemble
-            loss = loss_e + loss_m + reg_loss
+            loss += reg_loss
 
         grads = tape.gradient(loss, self.base_model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.base_model.trainable_variables))
+
         self.loss_tracker.update_state(loss)
-        return {"loss": self.loss_tracker.result()}
+        for metric in self.metrics:
+            metric.update_state(y_batch, pred)
+
+        return {"loss": self.loss_tracker.result(), **{m.name: m.result() for m in self.metrics}}
 
     @property
     def metrics(self):
         return [self.loss_tracker]
 
 
-
-
-## FUNCTION: minimises the RMSE for NNs
 def NN_training_laplacian(model, DATAX, DATAF, STAGX, LAPLF,
-                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                        shape_train_mesh, select_dimension,
                         trained_model_file, histories, casesetup, flightlog):
 
     # get the user inputs from Jason
     keras_options = casesetup['keras_setup']
 
+    # In this setup, instead of passing the mesh array, we pass the indices and let the minibatching
+    # work on it. We retrive the mesh from the index inside train_step.
+    # With that we can apply minibatching to the Laplacian as well.
+    # We must take care with shaping-flattening so the diffusion operator will work.
+    center_indices = np.arange(np.prod(shape_train_mesh), dtype=np.int32)
+
     # give the base model to the Laplacian model
     model = LaplacianModel(
         base_model=model,
         DATAX=DATAX,
+        DATAF=DATAF,
         STAGX=STAGX,
         LAPLF=LAPLF,
-        shape_train_mesh=shape_train_mesh,
-        shape_stagg_mesh=shape_stagg_mesh,
+        shape_full=shape_train_mesh,
         select_dimension=select_dimension,
     )
 
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"]))
 
-    # adaptive learning rate for good measure
-    reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.5, patience=250, cooldown=50, verbose=1, min_lr=1e-5)
-    laplstep_ = FixedStepLossMWeight(model, step_every=500, step_size=0.1, max_weight=1.0)
+    # adaptive learning rates for good measure, incl a ramp for the diffusion loss cause it's just too much
+    callbacks_list = []
 
+    if keras_options['if_learning_rate_schedule']:
+        reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.5, patience=250, cooldown=50, verbose=1, min_lr=1e-5)
+        callbacks_list.append(reduce_lr)
+
+    laplstep_ = FixedStepLossMWeight(model, step_every=500, step_size=0.1, max_weight=1.0)
+    callbacks_list.append(laplstep_)
+
+    # let's try this babe
     history = model.fit(
-        DATAX,
-        DATAF,
+        center_indices,
         verbose=0, epochs=keras_options["epochs"], batch_size=keras_options["batch_size"],
-        callbacks=[laplstep_,reduce_lr],
+        callbacks=callbacks_list,
         )
     histories = np.log(history.history['loss'])
 
@@ -348,6 +394,6 @@ class FixedStepLossMWeight(tf.keras.callbacks.Callback):
         step_count = epoch // self.step_every
         new_weight = min(step_count * self.step_size, self.max_weight)
         if new_weight != self.prev_weight:
-            print(f"Epoch {epoch+1}: loss_m_weight = {new_weight:.2e}")
+            print(f"Epoch {epoch+1}: loss_m_weight = {new_weight:.2e}; at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
             self.prev_weight = new_weight
         self.model_ref.loss_m_weight.assign(new_weight)
