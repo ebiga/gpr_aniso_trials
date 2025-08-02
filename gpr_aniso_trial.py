@@ -33,6 +33,7 @@ from matplotlib.lines import Line2D
 from tensorflow import keras
 from keras import layers, saving
 from gpflow.monitor import Monitor, MonitorTaskGroup
+from scipy.interpolate import RegularGridInterpolator, RBFInterpolator
 
 # get my functions
 from auxfunctions import *
@@ -67,6 +68,8 @@ def model_filename(method, dafolder):
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
     elif method == 'nn.attention':
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
+    elif method == 'interp.scipy':
+        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
 
     return trained_model_file
 
@@ -204,6 +207,16 @@ def get_me_a_model(method, DATAX, DATAF):
 
             # Create an attentive model
             model = keras.models.Model(inputs=inputs, outputs=output)
+
+        return model
+    
+    #_ SPLINE: Splipy
+    elif method == 'interp.scipy':
+        assert select_dimension == '3D', "spline.splipy only supports 3D"
+
+        #model = RegularGridInterpolator((XX, YY, ZZ), DDD, method='pchip')
+        model = RegularGridInterpolator((XX, YY, ZZ), DDD, method='cubic')
+        #model = RBFInterpolator(DATAX, DATAF, kernel='thin_plate_spline', smoothing=0)
 
         return model
 
@@ -353,7 +366,7 @@ elif select_dimension == '2D':
 
 
 # We'll need the shapes for managing in and out of the IJ meshgrid in the reversed order
-shape_train_mesh = M_i.shape[::-1]
+shape_train_mesh = np.shape(M_i)
 shape_stagg_mesh = np.shape(staggeredpts_i)
 
 # Store the reference Laplacian metric
@@ -398,7 +411,7 @@ elif if_train_optim == 'diffusionloss':
                                         trained_model_file, loss, casesetup, flightlog)
     elif 'nn' in method:
         model, loss = NN_training_laplacian(model, datas.to_numpy(), dataf.to_numpy(), staggeredpts, laplacian_dataf,
-                                        shape_train_mesh, shape_stagg_mesh, select_dimension,
+                                        shape_train_mesh, select_dimension,
                                         trained_model_file, loss, casesetup, flightlog)
 
 elif if_train_optim == 'nahimgood':
