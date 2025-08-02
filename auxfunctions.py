@@ -238,7 +238,7 @@ def make_build_model(input_shape):
 
         for i in range(nn_layers):
             units = hp.Int(f"units_{i}", min_value=60, max_value=480, step=60)
-            x = layers.Dense(units, kernel_initializer='he_normal')(x)
+            x = layers.Dense(units, kernel_initializer=keras.initializers.GlorotUniform(seed=None))(x)
             x = LeakyELU()(x)
 
         return layers.Dense(1)(x)
