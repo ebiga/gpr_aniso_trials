@@ -372,6 +372,7 @@ laplacian_dataf = compute_Laplacian(DDD, DDD, select_dimension)
 
 
 
+
 ### TRAIN THE MODELS
 
 trained_model_file = model_filename(method, dafolder)
@@ -573,6 +574,26 @@ predf_staggered = my_predicts(model, staggeredpts)
 predf_staggeredmesh = predf_staggered.reshape(shape_stagg_mesh)
 
 laplacian_predf = compute_Laplacian(predf_mesh, predf_staggeredmesh, select_dimension)
+
+
+#_! Fisher comparisons
+mean_data = np.average(dataf)
+mean_pred = np.average(predf)
+
+mean_lapla_data = np.average(laplacian_dataf)
+mean_lapla_pred = np.average(laplacian_predf)
+
+fishy_data = compute_FisherInformation(DDD, DDD, select_dimension)
+fishy_pred = compute_FisherInformation(predf_mesh, predf_staggeredmesh, select_dimension)
+
+mean_fishy_data = np.average(fishy_data)
+mean_fishy_pred = np.average(fishy_pred)
+
+print(f"Means: train, pred: {mean_data},{mean_pred}")
+print(f"Laplas: train, pred: {mean_lapla_data},{mean_lapla_pred}")
+print(f"Fisher: train, pred: {mean_fishy_data},{mean_fishy_pred}")
+#_!
+
 
 loss_m = np.sqrt(np.mean((laplacian_predf - laplacian_dataf)**2.))
 msg = f"RMSE of the Laplacians: {loss_m:.3e}"

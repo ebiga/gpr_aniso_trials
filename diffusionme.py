@@ -397,3 +397,96 @@ class FixedStepLossMWeight(tf.keras.callbacks.Callback):
             print(f"Epoch {epoch+1}: loss_m_weight = {new_weight:.2e}; at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
             self.prev_weight = new_weight
         self.model_ref.loss_m_weight.assign(new_weight)
+
+
+
+## FUNCTION: Compute the Fisher info for 2D and 3D, cell centred, for normal or staggered meshes
+#_ This follows the same framework of the Laplacians
+def compute_FisherInformation(y_orig, y_stag, select_dimension):
+    """
+    Compute discrete Fisher information density:
+        |∇ρ|^2 / ρ
+    on the probability density space.
+    """
+
+    densityway = 2
+
+    if densityway == 0:
+        # use the function directly
+        r_orig = y_orig
+        r_stag = y_stag
+
+    elif densityway == 1:
+        # use the function normalised by summation of original
+        denom = np.sum(y_orig)
+
+        r_orig = y_orig / denom
+        r_stag = y_stag / denom
+
+    elif densityway == 2:
+        # use the exponential density
+        r_unnorm = np.exp(y_orig)
+        denom = np.sum(r_unnorm)
+
+        r_orig = r_unnorm / denom
+        r_stag = np.exp(y_stag) / denom
+
+
+    if y_orig is not y_stag:
+        # If the arrays are not the same, we have a staggered mesh with the original mesh at the centre/corners
+        #_ We compute the Laplacian with a 5-point stencil
+        grid_spacing = 1.0
+
+        if select_dimension == '3D':
+            delta = np.sqrt(3.) * grid_spacing
+
+            dsr_dDs = (r_orig[2:  ,2:  ,2:  ] + r_stag[1:  ,1:  ,1:  ] - r_stag[ :-1, :-1, :-1] - r_orig[ :-2, :-2, :-2])**2 \
+                    + (r_orig[ :-2,2:  ,2:  ] + r_stag[ :-1,1:  ,1:  ] - r_stag[1:  , :-1, :-1] - r_orig[2:  , :-2, :-2])**2 \
+                    + (r_orig[2:  , :-2,2:  ] + r_stag[1:  , :-1,1:  ] - r_stag[ :-1,1:  , :-1] - r_orig[ :-2,2:  , :-2])**2 \
+                    + (r_orig[2:  ,2:  , :-2] + r_stag[1:  ,1:  , :-1] - r_stag[ :-1, :-1,1:  ] - r_orig[ :-2, :-2,2:  ])**2
+            # dsr_dDs = (-r_orig[2:  ,2:  ,2:  ] + 8*r_stag[1:  ,1:  ,1:  ] - 8*r_stag[ :-1, :-1, :-1] + r_orig[ :-2, :-2, :-2])**2 \
+            #         + (-r_orig[ :-2,2:  ,2:  ] + 8*r_stag[ :-1,1:  ,1:  ] - 8*r_stag[1:  , :-1, :-1] + r_orig[2:  , :-2, :-2])**2 \
+            #         + (-r_orig[2:  , :-2,2:  ] + 8*r_stag[1:  , :-1,1:  ] - 8*r_stag[ :-1,1:  , :-1] + r_orig[ :-2,2:  , :-2])**2 \
+            #         + (-r_orig[2:  ,2:  , :-2] + 8*r_stag[1:  ,1:  , :-1] - 8*r_stag[ :-1, :-1,1:  ] + r_orig[ :-2, :-2,2:  ])**2
+
+            rho_c = r_orig[1:-1,1:-1,1:-1]
+
+            return (dsr_dDs/rho_c) / (3. * delta)**2
+            # return (dsr_dDs/rho_c) / (6. * delta)**2
+
+        else:
+            delta = np.sqrt(2.) * grid_spacing
+
+            dsr_dDs = (r_orig[2:  ,2:] + r_stag[1:  ,1:] - r_stag[ :-1,:-1] - r_orig[ :-2,:-2])**2 \
+                    + (r_orig[ :-2,2:] + r_stag[ :-1,1:] - r_stag[1:  ,:-1] - r_orig[2:  ,:-2])**2
+
+            rho_c = r_orig[1:-1,1:-1,1:-1]
+
+            return (dsr_dDs/rho_c) / (6.* delta)**2
+
+
+    else:
+        # collocated mesh
+        grid_spacing = 1.0
+
+        if select_dimension == '3D':
+            delta = np.sqrt(3.) * grid_spacing
+
+            dsr_dDs = (r_orig[2:  ,2:  ,2:  ] - r_orig[ :-2, :-2, :-2])**2 \
+                    + (r_orig[ :-2,2:  ,2:  ] - r_orig[2:  , :-2, :-2])**2 \
+                    + (r_orig[2:  , :-2,2:  ] - r_orig[ :-2,2:  , :-2])**2 \
+                    + (r_orig[2:  ,2:  , :-2] - r_orig[ :-2, :-2,2:  ])**2
+
+            rho_c = r_orig[1:-1,1:-1,1:-1]
+
+            return (dsr_dDs/rho_c) / (2. * delta)**2
+
+        else:
+            delta = np.sqrt(2.) * grid_spacing
+
+            dsr_dDs = (r_orig[2:  ,2:] - r_orig[ :-2,:-2])**2 \
+                    + (r_orig[ :-2,2:] - r_orig[2:  ,:-2])**2
+
+            rho_c = r_orig[1:-1,1:-1,1:-1]
+
+            return (dsr_dDs/rho_c) / (2. * delta)**2
