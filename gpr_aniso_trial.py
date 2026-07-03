@@ -208,17 +208,23 @@ flightlog = open(os.path.join(dafolder, 'log.txt'), 'w')
 ### DATA POINTS
 
 # Define dimensions, breakpoints and output headers
+flap = "0"
+mach = "0.2"
 
-#brkpts = ["alpha [deg]", "beta [deg]", "ruddervator_LH [deg]", "ruddervator_RH [deg]"]
 brkpts = ["alpha [deg]", "beta [deg]", "ruddervator_LH [deg]"]
-#params = ["CH_tail_LH_rud", "CH_tail_RH_rud"]
 params = ["CH_tail_LH_rud"]
 
 Ndimensions = len(brkpts)
 Noutputs = len(params)
 
-datas = pd.read_csv('.//_aerodb//ADB_results_test15.csv', usecols=brkpts).astype(np.float64)
-dataf = pd.read_csv('.//_aerodb//ADB_results_test15.csv', usecols=params).astype(np.float64)
+# Read the whole CSV once
+df = pd.read_csv("./_aerodb/ADB_FDM2.1.csv")
+
+# Filter the desired operating condition
+df = df[(df["flap [deg]"] == float(flap)) & (df["mach"] == float(mach))]
+
+datas = df[brkpts].astype(np.float64)
+dataf = df[params].astype(np.float64)
 
 
 
