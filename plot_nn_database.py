@@ -28,12 +28,12 @@ def plot_surfaces(
 
     fig = plt.figure(figsize=(6*ncols, 5*nrows))
 
-    alpha = np.linspace(datas["alpha"].min(),
-                        datas["alpha"].max(),
+    alpha = np.linspace(datas["alpha [deg]"].min(),
+                        datas["alpha [deg]"].max(),
                         ngrid)
 
-    beta = np.linspace(datas["beta"].min(),
-                       datas["beta"].max(),
+    beta = np.linspace(datas["beta [deg]"].min(),
+                       datas["beta [deg]"].max(),
                        ngrid)
 
     AA, BB = np.meshgrid(alpha, beta)
@@ -44,9 +44,9 @@ def plot_surfaces(
                              projection="3d")
 
         X = pd.DataFrame({
-            "alpha": AA.ravel(),
-            "beta": BB.ravel(),
-            "deflection": d
+            "alpha [deg]": AA.ravel(),
+            "beta [deg]": BB.ravel(),
+            "ruddervator_LH [deg]": d
         })
 
         CH = my_predicts(model, X.to_numpy()).reshape(AA.shape)
@@ -59,19 +59,19 @@ def plot_surfaces(
             linewidth=0,
             alpha=0.7)
 
-        mask = np.isclose(datas["deflection"], d)
+        mask = np.isclose(datas["ruddervator_LH [deg]"], d)
 
         ax.scatter(
-            datas.loc[mask, "alpha"],
-            datas.loc[mask, "beta"],
+            datas.loc[mask, "alpha [deg]"],
+            datas.loc[mask, "beta [deg]"],
             dataf.loc[mask],
             color="k",
             s=10)
 
         ax.set_title(f"Deflection = {d:.1f}°")
 
-        ax.set_xlabel("Alpha")
-        ax.set_ylabel("Beta")
+        ax.set_xlabel("alpha [deg]")
+        ax.set_ylabel("beta [deg]")
         ax.set_zlabel("CH")
 
         ax.view_init(elev=20, azim=135)
@@ -108,25 +108,25 @@ def plot_ch_vs_deflection(
     plt.figure(figsize=(10,7))
 
     x = np.linspace(
-        datas["deflection"].min(),
-        datas["deflection"].max(),
+        datas["ruddervator_LH [deg]"].min(),
+        datas["ruddervator_LH [deg]"].max(),
         300)
 
     for alpha0 in alphas:
 
         mask = (
-            np.isclose(datas["alpha"], alpha0, atol=alpha_tol)
+            np.isclose(datas["alpha [deg]"], alpha0, atol=alpha_tol)
             &
-            np.isclose(datas["beta"], beta_fixed, atol=beta_tol)
+            np.isclose(datas["beta [deg]"], beta_fixed, atol=beta_tol)
         )
 
         if mask.sum() == 0:
             continue
 
         X = pd.DataFrame({
-            "alpha": np.full_like(x, alpha0),
-            "beta": np.full_like(x, beta_fixed),
-            "deflection": x
+            "alpha [deg]": np.full_like(x, alpha0),
+            "beta [deg]": np.full_like(x, beta_fixed),
+            "ruddervator_LH [deg]": x
         })
 
         y = my_predicts(model, X.to_numpy())
@@ -138,7 +138,7 @@ def plot_ch_vs_deflection(
             label=f"α={alpha0:.0f}°")
 
         plt.scatter(
-            datas.loc[mask,"deflection"],
+            datas.loc[mask,"ruddervator_LH [deg]"],
             dataf.loc[mask],
             s=20)
 
@@ -177,25 +177,25 @@ def plot_ch_vs_beta(
     plt.figure(figsize=(10,7))
 
     x = np.linspace(
-        datas["beta"].min(),
-        datas["beta"].max(),
+        datas["beta [deg]"].min(),
+        datas["beta [deg]"].max(),
         300)
 
     for d0 in deflections:
 
         mask = (
-            np.isclose(datas["alpha"], alpha_fixed, atol=alpha_tol)
+            np.isclose(datas["alpha [deg]"], alpha_fixed, atol=alpha_tol)
             &
-            np.isclose(datas["deflection"], d0, atol=deflection_tol)
+            np.isclose(datas["ruddervator_LH [deg]"], d0, atol=deflection_tol)
         )
 
         if mask.sum() == 0:
             continue
 
         X = pd.DataFrame({
-            "alpha": np.full_like(x, alpha_fixed),
-            "beta": x,
-            "deflection": np.full_like(x, d0)
+            "alpha [deg]": np.full_like(x, alpha_fixed),
+            "beta [deg]": x,
+            "ruddervator_LH [deg]": np.full_like(x, d0)
         })
 
         y = my_predicts(model, X.to_numpy())
@@ -207,7 +207,7 @@ def plot_ch_vs_beta(
             label=f"δ={d0:.0f}°")
 
         plt.scatter(
-            datas.loc[mask,"beta"],
+            datas.loc[mask,"beta [deg]"],
             dataf.loc[mask],
             s=20)
 
