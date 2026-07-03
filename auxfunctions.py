@@ -69,28 +69,6 @@ def generate_kernel_info(model):
 
 
 
-## Reshape due to csv XY and my lovely IJ orders
-def reshape_flatarray_like_reference_meshgrid(offending_array, dashape, select_dimension):
-    # the csv comes in the reversed order of the IJ mesh grid
-    # the flattened array is reshaped into its mesh shape than tranposed to the IJ shape
-    ashape = dashape[::-1]
-    if select_dimension == '3D':
-        return offending_array.reshape(ashape).transpose(2, 1, 0)
-    elif select_dimension == '2D':
-        return offending_array.reshape(ashape).transpose()
-
-def tf_reshape_flatarray_like_reference_meshgrid(array, dashape, select_dimension):
-    ashape = dashape[::-1]
-    if select_dimension == '3D':
-        reshaped = tf.reshape(array, ashape)
-        return tf.transpose(reshaped, perm=[2, 1, 0])
-    elif select_dimension == '2D':
-        reshaped = tf.reshape(array, ashape)
-        return tf.transpose(reshaped)
-
-
-
-
 ## Write predicts out
 def write_predicts_file(location, params_in, func_in, func_pred):
     predfile = pd.DataFrame(params_in)
@@ -136,12 +114,6 @@ def my_predicts(model, X):
             with torch.no_grad():
                 return model(torch.tensor(X)).mean.detach().numpy()
 
-    elif "LaplacianModel" in type(model).__name__:
-        return model.predict(X).reshape(-1)
-
-    elif "interpolate" in module:
-        return model(X)
-
     else:
         raise TypeError(f"Unsupported model type: {type(model)}")
 
@@ -170,16 +142,13 @@ def kernel_variance_whatabouts(jsonfile):
 
 
 ## Will define what to do with the kernel lengthscale
-def kernel_lengthscale_whatabouts(jsonfile, select_dimension):
+def kernel_lengthscale_whatabouts(jsonfile, Ndimensions):
 
     # Get either a false or a value
     lens = float(jsonfile['GPR_setup']['kernel_lengthscale'])
     if_ARD = jsonfile['GPR_setup']['if_kernel_lengthscale_ARD']
 
-    if select_dimension == '3D':
-        Ndim = 3
-    elif select_dimension == '2D':
-        Ndim = 2
+    Ndim = Ndimensions
 
     if if_ARD: lens = np.full(Ndim, lens)
 

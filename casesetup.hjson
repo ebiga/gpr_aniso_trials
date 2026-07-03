@@ -1,30 +1,19 @@
 
-# there are four sizes to pick from:
-#  full, mid, small, tiny
-select_input_size: 'tiny'
-
-# you can run the full 3D case or a 2D slice at mid param3
-#  2D, 3D
-select_dimension: '3D'
-
 # fitting methods available:
 #  'gpr.scikit': GPR by scikit-learn
 #  'gpr.gpflow': GPR by GPFlow
 #  'gpr.gpytorch' GPR by GPYTorch
 #  'nn.dense': Neural Network by tensorflow/keras usual Dense
-#  'nn.attention': Neural Network by tensorflow/keras with an Attention layer
-#  'interp.scipy': just read it...
-method: 'interp.scipy'
+method: 'nn.dense'
 
 # let the hyperparameters by optimised by a few methods, or just run, or just restart
 #  'conventional': LML for GPR, RMSE for NN
-#  'diffusionloss': my method :)
 #  'nahimgood': just dry run a model, no optimisation
 #  'restart': read a presaved model
 if_train_optim: 'conventional'
 
 # output figure format: eps, png
-fig_format: eps
+fig_format: png
 
 # GPR scikit options
 GPR_setup:
@@ -57,14 +46,6 @@ GPR_setup:
     {
         maxiter: 50,
     }
-
-    # Diffusion-loss optimizer options
-    diffusionloss_minimise_setup:
-    {
-        maxiter: 1500,
-        final_tr_radius: 1e-9,
-        initial_tr_radius: 3,
-    }
 }
 
 # Neural network options
@@ -75,10 +56,5 @@ keras_setup:
     if_learning_rate_schedule: false,
     epochs: 2500,
     batch_size: 32,
-    hidden_layers: [8, 4],
-
-    multiheadattention_setup:
-    {
-        num_heads: 2
-    }
+    hidden_layers: [8, 8, 8],
 }

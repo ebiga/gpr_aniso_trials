@@ -51,19 +51,3 @@ class GPRegressionModel(gpytorch.models.ExactGP):
         self.likelihood.eval()
 
         return
-
-
-
-# Class necessary to expand the input layer shape for the multiheadattention
-@saving.register_keras_serializable()
-class ExpandALayer(layers.Layer): 
-    def call(self, x):
-        return tf.expand_dims(x, axis=1)
-
-
-
-# Class necessary to squeeze back the output shape of the multiheadattention
-@saving.register_keras_serializable()
-class SqueezeALayer(layers.Layer):
-    def call(self, x):
-        return tf.squeeze(x, axis=1)
