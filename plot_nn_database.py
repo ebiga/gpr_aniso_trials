@@ -62,9 +62,9 @@ def plot_surfaces(
         mask = np.isclose(datas["ruddervator_LH [deg]"], d)
 
         ax.scatter(
-            datas.loc[mask, "alpha [deg]"],
-            datas.loc[mask, "beta [deg]"],
-            dataf.loc[mask],
+            datas.loc[mask, "alpha [deg]"].to_numpy(),
+            datas.loc[mask, "beta [deg]"].to_numpy(),
+            dataf.loc[mask].to_numpy().ravel(),
             color="k",
             s=10)
 
