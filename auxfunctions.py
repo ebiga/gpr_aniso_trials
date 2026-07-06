@@ -2,11 +2,9 @@ import os
 import hjson
 import numpy as np
 import pandas as pd
-import sklearn
 import silence_tensorflow.auto
 import gpflow
 import torch
-import gpytorch
 
 import tensorflow as tf
 from tensorflow import keras
@@ -29,10 +27,7 @@ torch.manual_seed(42)
 def generate_kernel_info(model):
     module = type(model).__module__
     
-    if "sklearn" in module:
-        return str(model.kernel_)
-    
-    elif "gpflow" in module:
+    if "gpflow" in module:
         def kernel_to_code(k):
             # Handle kernel combinations (Sum, Product)
             if isinstance(k, gpflow.kernels.Sum):
@@ -60,11 +55,6 @@ def generate_kernel_info(model):
             return f"{kernel_name}({', '.join(params)})"
         # Start recursive kernel generation
         return str(kernel_to_code(model.kernel))
-    
-    elif isinstance(model, gpytorch.models.GP):
-        msg = "Lengthscale: " + str(model.covar_module.base_kernel.lengthscale.squeeze().tolist()) + "\n" \
-            + "Variance: " + str(model.covar_module.outputscale.item()) + "\n"
-        return msg
 
 
 
@@ -98,21 +88,11 @@ def check_mean(atest, mean, refd):
 def my_predicts(model, X):
     module = type(model).__module__
     
-    if "sklearn" in module:
-        return model.predict(X, return_cov=False)
-    
-    elif "gpflow" in module:
+    if "gpflow" in module:
         return model.predict_f(X)[0].numpy().reshape(-1)
     
     elif "tensorflow" in module or "keras" in module:
         return model.predict(X).reshape(-1)
-    
-    elif isinstance(model, gpytorch.models.GP):
-        model.eval()
-        model.likelihood.eval()
-        with gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False, solves=False):
-            with torch.no_grad():
-                return model(torch.tensor(X)).mean.detach().numpy()
 
     else:
         raise TypeError(f"Unsupported model type: {type(model)}")
@@ -161,31 +141,10 @@ def kernel_lengthscale_whatabouts(jsonfile, Ndimensions):
 def update_kernel_params(model, new_lengthscale, new_variance=None):
     module = type(model).__module__
 
-    #_ scikit-learn
-    if "sklearn" in module:
-        kernel = model.kernel
-        params = {}
-        klist  = kernel.get_params()
-
-        for name in klist:
-            if name.endswith('length_scale'):
-                params[name] = new_lengthscale
-            if new_variance and name.endswith('constant_value'):
-                params[name] = new_variance
-
-        kernel.set_params(**params)
-        model.fit(model.X_train_, model.y_train_)
-        return
-
     #_ GPflow
-    elif "gpflow" in module:
+    if "gpflow" in module:
         model.kernel.lengthscales.assign(new_lengthscale)
         if new_variance: model.kernel.variance.assign(new_variance)
-        return
-
-    #_ GPyTorch
-    elif "gpytorch" in module:
-        model.set_hyperparameters(new_lengthscale, new_variance)
         return
 
 

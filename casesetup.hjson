@@ -1,8 +1,6 @@
 
 # fitting methods available:
-#  'gpr.scikit': GPR by scikit-learn
 #  'gpr.gpflow': GPR by GPFlow
-#  'gpr.gpytorch' GPR by GPYTorch
 #  'nn.dense': Neural Network by tensorflow/keras usual Dense
 method: 'nn.dense'
 
@@ -15,7 +13,7 @@ if_train_optim: 'conventional'
 # output figure format: eps, png
 fig_format: png
 
-# GPR scikit options
+# GPR options
 GPR_setup:
 {
     # Set to false if you want it optimised, otherwise give it a value (it will be squared)
@@ -27,24 +25,12 @@ GPR_setup:
     kernel_lengthscale: 5.0
     if_kernel_lengthscale_ARD: false
 
-    # Scikit options
-    scikit_setup:
-    {
-        n_restarts_optimizer: 3
-    }
-
     # GPFlow options
     gpflow_setup:
     {
         maxiter: 1500,
         gtol: 1e-9,
         ftol: 1e-9,
-    }
-
-    # GPYTorch options
-    gpytorch_setup:
-    {
-        maxiter: 50,
     }
 }
 

@@ -1,12 +1,10 @@
 import os
 import hjson
-import sklearn
 import silence_tensorflow.auto
 import gpflow
 import pickle
 import time
 import torch
-import gpytorch
 import matplotlib
 matplotlib.use('TkAgg')
 matplotlib.set_loglevel('critical')
@@ -26,8 +24,6 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import seaborn as sns
 
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from matplotlib import cm
 from matplotlib.lines import Line2D
 from tensorflow import keras
@@ -36,7 +32,6 @@ from gpflow.monitor import Monitor, MonitorTaskGroup
 
 # get my functions
 from auxfunctions import *
-from auxgpytorch  import *
 from optimme      import *
 from plot_nn_database import *
 
@@ -57,12 +52,8 @@ torch.manual_seed(42)
 
 ## FUNCTION: Just creates a model filename
 def model_filename(method, dafolder):
-    if method == 'gpr.scikit':
+    if method == 'gpr.gpflow':
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
-    elif method == 'gpr.gpflow':
-        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pkl')
-    elif method == 'gpr.gpytorch':
-        trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.pth')
     elif method == 'nn.dense':
         trained_model_file = os.path.join(dafolder, 'model_training_' + method + '.keras')
 
@@ -79,53 +70,21 @@ def load_model_from_file(method, trained_model_file):
     elif '.keras' in trained_model_file:
         model = tf.keras.models.load_model(trained_model_file)
 
-    elif method == 'gpr.gpytorch':
-        model = torch.load(trained_model_file, weights_only=False)
-
     return model
 
 
 ## FUNCTION: Setup the model to be run and the file to save it
 def get_me_a_model(method, DATAX, DATAF):
 
-    ## Input model parameters
-    #_ Define kernel parameters for GPRs
-    if 'gpr' in method:
+    #_ GPR: GPFlow
+    if method == 'gpr.gpflow':
+
         #_ variance
         vars, if_train_variance = kernel_variance_whatabouts(casesetup)
 
         #_ lengthscale
         lens = kernel_lengthscale_whatabouts(casesetup, Ndimensions)
 
-    #_ Define nn parameters for... well, NNs
-    if 'nn' in method:
-        nn_layers = casesetup['keras_setup']["hidden_layers"]
-
-
-    ## Each method has its own ways
-    #_ GPR: Scikit-learn
-    if method == 'gpr.scikit':
-        # Set priors: fix what we don't want to optimise
-        if not if_train_variance:
-            kvars = ConstantKernel(vars, constant_value_bounds="fixed")
-        else:
-            kvars = ConstantKernel(vars)
-
-        # Get a kernel
-        kernel = kvars * RBF(length_scale=lens)
-
-        # Setup the model
-        #_ We set it here with no optimizer to dry start it - this will be changed later if needed
-        n_restarts_optimizer = casesetup['GPR_setup']['scikit_setup']['n_restarts_optimizer']
-        model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer, optimizer=None)
-
-        # We need to blind fit to create the kernel_ structure
-        model.fit(DATAX, DATAF)
-
-        return model
-
-    #_ GPR: GPFlow
-    elif method == 'gpr.gpflow':
         # Get a kernel
         kernel = gpflow.kernels.SquaredExponential(variance=vars, lengthscales=lens)
 
@@ -147,28 +106,11 @@ def get_me_a_model(method, DATAX, DATAF):
 
         return model
 
-    #_ GPR: GPYTorch
-    elif method == 'gpr.gpytorch':
-        train_x = torch.tensor(DATAX)
-        train_y = torch.tensor(DATAF)
-
-        # GPYTorch requires us to build a likelihood, we want it noiseless and not trainable
-        likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.GreaterThan(1e-12))
-        likelihood.noise = 1e-10
-        likelihood.raw_noise.requires_grad = False
-
-        # Define the model
-        model = GPRegressionModel(train_x, train_y, likelihood)
-
-        # Set priors: fix what we don't want to optimise
-        model.set_hyperparameters(lens, vars)
-        if not if_train_variance:
-            model.covar_module.raw_outputscale.requires_grad = False
-
-        return model
-
     #_ NN, Dense
     elif method == 'nn.dense':
+
+        nn_layers = casesetup['keras_setup']["hidden_layers"]
+
         # Setup the neural network
         input_shape = DATAX.shape[1:]
 
