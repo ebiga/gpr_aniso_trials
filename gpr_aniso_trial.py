@@ -163,8 +163,27 @@ Noutputs = len(params)
 df = pd.read_csv("./_aerodb/ADB_FDM2.1.csv")
 
 # Filter the desired operating condition
-df = df[(df["flap [deg]"] == float(flap)) & (df["mach"] == float(mach))]
+df = df[(df["flap [deg]"] == float(flap)) & (df["mach"] == float(mach)) & (df["ruddervator_LH [deg]"] == df["ruddervator_RH [deg]"])]
 
+
+#!!! Only work with symmetric deflections 
+#__ Extract the symmetric cases
+df = df[(df["ruddervator_LH [deg]"] == df["ruddervator_RH [deg]"])]
+
+#__ Mirror symmetric cases: right ruddervator will receive the negative of beta
+if (df["symmetry"] == 0).any():
+
+    df_mirror = df[df["symmetry"] == 0].copy()
+    df_mirror["beta [deg]"] *= -1
+
+    df_mirror["CH_tail_LH_rud"] = df[df["symmetry"] == 0]["CH_tail_RH_rud"].to_numpy()
+    df_mirror["CH_tail_RH_rud"] = df[df["symmetry"] == 0]["CH_tail_LH_rud"].to_numpy()
+
+    df = pd.concat([df, df_mirror], ignore_index=True)
+    # df = df.drop_duplicates()
+
+
+# Attribute to the expected arrays
 datas = df[brkpts].astype(np.float64)
 dataf = df[params].astype(np.float64)
 
