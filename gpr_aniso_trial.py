@@ -118,7 +118,7 @@ def get_me_a_model(method, DATAX, DATAF):
         output = build_nn_trunk(inputs, nn_layers)
 
         # Define the model to get it out in the world
-        model = tf.keras.Model(inputs=inputs, outputs=output)
+        model = tf.keras.Model(inputs=inputs, outputs=output, name="nn.dense")
 
         return model
 
