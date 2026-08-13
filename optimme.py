@@ -88,3 +88,61 @@ def minimise_NN_RMSE(method, model, DATAX, DATAF, trained_model_file, loss, case
     model.save(trained_model_file)
 
     return model, loss
+
+
+
+## FUNCTION: minimises the RMSE for NNs using Feature-Wise Linear Modulation
+def minimise_NN_RMSE_film(DATAX, DATAF, trained_model_file, keras_options):
+
+    # Setup the model
+    nn_layers = keras_options["hidden_layers"]
+    nn_layers_encoder = keras_options["hidden_layers_encoder"]
+    lelubeta = keras_options['leakyELU_beta']
+
+    # Separate Mach number from other parameters in DATAX
+    mach_data = DATAX[["conditioning"]]
+    feature_data = DATAX.drop(columns=["conditioning"])
+
+    # Define Keras Inputs & Build FiLM Model
+    cond_input = keras.Input(shape=(1,), name='conditioning_input')
+    feature_input = keras.Input(shape=(feature_data.shape[1],), name='feature_input')
+
+    output_tensor = build_nn_trunk_film(
+        input_tensor_conditioned_features=feature_input, 
+        input_tensor_conditional=cond_input, 
+        nn_layers=nn_layers,
+        nn_layers_encoder=nn_layers_encoder,
+        lelubeta=lelubeta
+    )
+
+    model = keras.Model(inputs=[feature_input, cond_input], outputs=output_tensor, name="film.dense")
+
+    # Compile and Train
+    callbacks_list = []
+    if keras_options.get('if_learning_rate_schedule', False):
+        reduce_lr = keras.callbacks.ReduceLROnPlateau(
+            monitor='loss', factor=0.5, patience=250, cooldown=50, verbose=1, min_lr=1e-5
+        )
+        callbacks_list.append(reduce_lr)
+
+    model.compile(
+        loss='mean_absolute_error', 
+        optimizer=keras.optimizers.Adam(learning_rate=keras_options["learning_rate"])
+    )
+
+    # Pass inputs as a list [features, Mach]
+    history = model.fit(
+        x=[feature_data, mach_data],
+        y=DATAF,
+        verbose=0, 
+        epochs=keras_options["epochs"], 
+        batch_size=keras_options["batch_size"],
+        callbacks=callbacks_list,
+    )
+
+    loss_log = np.log(history.history['loss'])
+
+    # Save the multi-input Keras model
+    model.save(trained_model_file)
+
+    return model, loss_log
