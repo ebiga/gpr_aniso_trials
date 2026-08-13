@@ -92,7 +92,14 @@ def my_predicts(model, X):
         return model.predict_f(X)[0].numpy().reshape(-1)
     
     elif "tensorflow" in module or "keras" in module:
-        return model.predict(X).reshape(-1)
+
+        if "film" in model.name.lower():
+            mach_data = X[["mach"]]
+            feature_data = X.drop(columns=["mach"])
+            return model.predict([feature_data, mach_data], verbose=0).reshape(-1)
+
+        elif "nn" in model.name.lower():
+            return model.predict(X, verbose=0).reshape(-1)
 
     else:
         raise TypeError(f"Unsupported model type: {type(model)}")
