@@ -182,3 +182,70 @@ class LeakyELU(tf.keras.layers.Layer):
 
 # Register so it can be used in model configs
 get_custom_objects().update({'LeakyELU': LeakyELU})
+
+
+
+# NN trunk with feature retention
+def build_nn_trunk_film(input_tensor_conditional, input_tensor_conditioned_features, nn_layers, nn_layers_encoder, lelubeta = 0.4):
+    """
+    FiLM-conditioned network trunk, an affine transform to the layers based on input_tensor_conditional.
+
+    - input_tensor_conditioned_features: Tensor for other parameters that are conditioned on input_tensor_conditional [batch, N_features]
+    - input_tensor_conditional: Tensor for the conditioning parameter [batch, 1]
+    - nn_layers: List of hidden layer dimensions
+    """
+
+    x = input_tensor_conditioned_features
+    cond = input_tensor_conditional
+
+
+    # Encoder to learn the conditioning features.
+    for i, nn in enumerate(nn_layers_encoder):
+        cond = layers.Dense(
+            nn,
+            activation=LeakyELU(beta=lelubeta),
+            kernel_initializer=keras.initializers.GlorotUniform()
+        )(cond)
+
+
+    # This is the main trunk of the nn, fed by the encoder.
+    for i, nn in enumerate(nn_layers):
+        # 1. Standard linear transformation for main features (pre-activation)
+        x = layers.Dense(
+            nn,
+            kernel_initializer=keras.initializers.GlorotUniform()
+        )(x)
+
+        # 2. Compute Gamma (scale) and Beta (shift) from the conditioning parameter
+        # Initializing gamma bias to 1s and beta to 0s.
+        gamma = layers.Dense(
+            nn,
+            kernel_initializer='zeros',
+            bias_initializer='ones',
+        )(cond)
+
+        beta = layers.Dense(
+            nn,
+            kernel_initializer='zeros',
+            bias_initializer='zeros',
+        )(cond)
+
+        # 3. FiLM Modulation: x = (x * gamma) + beta
+        x = layers.Multiply()([x, gamma])
+        x = layers.Add()([x, beta])
+
+        # 4. We feed the encoded conditioning directly _as well_.
+        m = layers.Dense(
+            nn,
+            kernel_initializer=keras.initializers.GlorotUniform()
+        )(cond)
+
+        x = layers.Concatenate()([x, m])
+
+        # 5. Apply Activation
+        x = LeakyELU(beta=lelubeta)(x)
+
+
+    # Output Layer
+    output = layers.Dense(1)(x)
+    return output
